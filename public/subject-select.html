@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Select Subject</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+    }
+    h1 {
+      color: #2c3e50;
+      font-size: 22px;
+    }
+
+    /* Progress bar styles */
+    .progress-container {
+      width: 100%;
+      max-width: 400px;
+      margin: 0 auto 30px auto;
+      background: #ddd;
+      border-radius: 20px;
+      overflow: hidden;
+      height: 20px;
+    }
+    .progress-fill {
+      height: 100%;
+      background: #27ae60;
+      width: 0%; /* JavaScript will update this */
+      transition: width 0.4s ease; /* makes the bar animate smoothly when it changes */
+    }
+    .progress-label {
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 20px;
+    }
+
+    .subject-list {
+      max-width: 400px;
+      margin: 0 auto;
+    }
+    .subject-btn {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: white;
+      border: 2px solid #2c3e50;
+      color: #2c3e50;
+      padding: 18px 20px;
+      font-size: 18px;
+      font-weight: bold;
+      border-radius: 10px;
+      cursor: pointer;
+      width: 100%;
+      margin-bottom: 12px;
+      box-sizing: border-box;
+    }
+    .subject-btn.completed {
+      background: #eafaf1;
+      border-color: #27ae60;
+      color: #27ae60;
+    }
+    .checkmark {
+      font-size: 20px;
+      color: #27ae60;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="progress-container">
+    <div class="progress-fill" id="progressFill"></div>
+  </div>
+  <p class="progress-label" id="progressLabel">0 of 4 subjects completed</p>
+
+  <h1 id="gradeTitle">Select a Subject</h1>
+
+  <div class="subject-list" id="subjectList">
+    <!-- Buttons will be created by JavaScript below -->
+  </div>
+
+  <script>
+    // Read the grade from the URL (e.g. ?grade=9)
+    const params = new URLSearchParams(window.location.search);
+    const grade = params.get("grade");
+
+    document.getElementById("gradeTitle").textContent = `Grade ${grade} — Select a Subject`;
+
+    const subjects = [
+      { id: "bio", name: "Biology" },
+      { id: "math", name: "Math" },
+      { id: "chem", name: "Chemistry" },
+      { id: "phys", name: "Physics" },
+    ];
+
+
+
+let telegramId;
+if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe.user) {
+  telegramId = window.Telegram.WebApp.initDataUnsafe.user.id;
+} else {
+  telegramId = "test_user_browser";
+}
+
+let completedSubjects = []; // starts empty, filled in by fetchCompletedSubjects() below
+
+    function renderSubjects() {
+      const subjectList = document.getElementById("subjectList");
+      subjectList.innerHTML = "";
+
+      subjects.forEach((subject) => {
+        const isCompleted = completedSubjects.includes(subject.id);
+
+        const btn = document.createElement("button");
+        btn.className = "subject-btn" + (isCompleted ? " completed" : "");
+        btn.innerHTML = `<span>${subject.name}</span>` + (isCompleted ? `<span class="checkmark">✓</span>` : "");
+
+        btn.onclick = () => {
+          window.location.href = `quiz.html?grade=${grade}&subject=${subject.id}`;
+        };
+
+        subjectList.appendChild(btn);
+      });
+
+      updateProgressBar();
+    }
+
+    function updateProgressBar() {
+      const totalSubjects = subjects.length;
+      const completedCount = completedSubjects.length;
+      const percent = (completedCount / totalSubjects) * 100;
+
+      document.getElementById("progressFill").style.width = `${percent}%`;
+      document.getElementById("progressLabel").textContent = `${completedCount} of ${totalSubjects} subjects completed`;
+    }
+
+    async function fetchCompletedSubjects() {
+  try {
+    const url = `/api/quiz-attempts/completed?telegramId=${telegramId}&grade=${grade}`;
+    const response = await fetch(url);
+    const result = await response.json();
+
+    if (response.ok) {
+      completedSubjects = result.completedSubjects;
+    }
+  } catch (err) {
+    console.error("Failed to fetch completed subjects:", err);
+    // If this fails, completedSubjects just stays empty — not a big deal, page still works
+  }
+
+  renderSubjects();
+}
+
+fetchCompletedSubjects();
+  </script>
+</body>
+</html>

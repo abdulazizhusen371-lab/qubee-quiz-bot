@@ -1,0 +1,21 @@
+{
+  "name": "qubee-quiz-bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "cloudinary": "^2.10.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "grammy": "^1.45.1",
+    "mongodb": "^7.5.0",
+    "multer": "^2.2.0"
+  }
+}

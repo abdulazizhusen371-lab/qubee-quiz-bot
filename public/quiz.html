@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Quiz</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/canvas-confetti/1.9.2/confetti.browser.min.js"></script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding-bottom: 100px; /* leaves room above the fixed Finish button */
+    }
+
+    /* Progress bar pinned to the top of the screen while scrolling */
+    .top-bar {
+      position: sticky;
+      top: 0;
+      background: white;
+      padding: 12px 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      z-index: 10;
+    }
+    .progress-container {
+      width: 100%;
+      background: #ddd;
+      border-radius: 20px;
+      overflow: hidden;
+      height: 14px;
+    }
+    .progress-fill {
+      height: 100%;
+      background: #2c3e50;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    .progress-label {
+      font-size: 13px;
+      color: #555;
+      margin-top: 6px;
+    }
+
+    .question-card {
+      background: white;
+      margin: 16px 20px;
+      padding: 18px;
+      border-radius: 10px;
+    }
+    .question-text {
+      font-size: 17px;
+      font-weight: bold;
+      margin-bottom: 12px;
+    }
+    .question-img {
+      max-width: 100%;
+      border-radius: 6px;
+      margin-bottom: 12px;
+    }
+    .choice {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: #f9f9f9;
+      border: 2px solid #ddd;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-size: 15px;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+    .choice.selected {
+      border-color: #2c3e50;
+      background: #eaf0f6;
+    }
+
+    /* Review mode colors — only applied after Finish is clicked */
+    .choice.correct-answer {
+      border-color: #27ae60;
+      background: #eafaf1;
+    }
+    .choice.wrong-answer {
+      border-color: #c0392b;
+      background: #fdecea;
+    }
+    .mark {
+      float: right;
+      font-weight: bold;
+    }
+
+    .finish-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      padding: 15px 20px;
+      box-shadow: 0 -2px 6px rgba(0,0,0,0.1);
+    }
+    .finish-btn {
+      width: 100%;
+      padding: 15px;
+      background: #2c3e50;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .finish-btn:disabled {
+      background: #aaa;
+      cursor: not-allowed;
+    }
+
+    /* Result popup shown after finishing */
+    .result-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .result-card {
+      background: white;
+      padding: 30px;
+      border-radius: 14px;
+      text-align: center;
+      max-width: 300px;
+    }
+    .result-score {
+      font-size: 40px;
+      font-weight: bold;
+      color: #27ae60;
+      margin: 10px 0;
+    }
+    .result-btn {
+      margin-top: 15px;
+      padding: 12px 24px;
+      background: #2c3e50;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="top-bar">
+    <div class="progress-container">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+    <div class="progress-label" id="progressLabel">0 of 0 answered</div>
+  </div>
+
+  <div id="questionsContainer">
+    <!-- Questions get inserted here by JavaScript -->
+  </div>
+
+  <div class="finish-bar">
+    <button class="finish-btn" id="finishBtn" disabled>Answer all questions to finish</button>
+  </div>
+
+  <div class="result-overlay" id="resultOverlay">
+    <div class="result-card">
+      <div>🎉 Quiz Complete!</div>
+      <div class="result-score" id="resultScore">0/0</div>
+      <div id="resultMessage">Great job!</div>
+      <button class="result-btn" onclick="reviewAnswers()">Review My Answers</button>
+      <button class="result-btn" style="background: #7f8c8d; margin-top: 8px;" onclick="goBack()">Back to Subjects</button>
+    </div>
+  </div>
+  
+  <script>
+    const params = new URLSearchParams(window.location.search);
+const grade = params.get("grade");
+const subject = params.get("subject");
+let week = null; // will be fetched from the server before loading questions
+
+let telegramId;
+if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe.user) {
+  telegramId = window.Telegram.WebApp.initDataUnsafe.user.id;
+} else {
+  telegramId = "test_user_browser";
+}
+
+async function fetchCurrentWeek() {
+  const url = `/api/current-week?grade=${grade}&subject=${subject}`;
+  const response = await fetch(url);
+  const result = await response.json();
+  week = result.week;
+}
+
+let questions = []; // starts empty, filled in by fetchQuestions() below
+
+async function fetchQuestions() {
+  const container = document.getElementById("questionsContainer");
+  container.innerHTML = `<p style="text-align:center; padding: 30px;">Loading questions...</p>`;
+
+  try {
+    const url = `/api/quiz-questions?grade=${grade}&subject=${subject}&week=${week}`;
+    const response = await fetch(url);
+    const result = await response.json();
+
+    if (!response.ok) {
+      container.innerHTML = `<p style="text-align:center; padding: 30px; color: red;">⚠ ${result.error}</p>`;
+      return;
+    }
+
+    if (result.questions.length === 0) {
+      container.innerHTML = `<p style="text-align:center; padding: 30px; color: #999;">No questions available yet for this quiz.</p>`;
+      return;
+    }
+
+    questions = result.questions;
+    renderQuestions();
+    updateProgress();
+  } catch (err) {
+    container.innerHTML = `<p style="text-align:center; padding: 30px; color: red;">⚠ Network error loading quiz.</p>`;
+  }
+}
+    // Tracks which choice index the student picked for each question
+    // e.g. { 0: 1, 1: 0 } means "for question 0, picked choice 1"
+    const studentAnswers = {};
+
+    let quizFinished = false;
+
+    function renderQuestions() {
+      const container = document.getElementById("questionsContainer");
+      container.innerHTML = "";
+
+      questions.forEach((q, qIndex) => {
+        const card = document.createElement("div");
+        card.className = "question-card";
+
+        let html = `<div class="question-text">Q${qIndex + 1}. ${q.questionText}</div>`;
+
+        if (q.imageUrl) {
+          html += `<img class="question-img" src="${q.imageUrl}">`;
+        }
+
+        q.choices.forEach((choice, cIndex) => {
+          html += `<button class="choice" data-q="${qIndex}" data-c="${cIndex}" onclick="selectChoice(${qIndex}, ${cIndex})">${choice.text}</button>`;
+        });
+
+        card.innerHTML = html;
+        container.appendChild(card);
+      });
+
+      renderMathIn(container);
+    }
+
+    function selectChoice(qIndex, cIndex) {
+      if (quizFinished) return; // no changing answers after submitting
+
+      studentAnswers[qIndex] = cIndex;
+
+      // Update visual selection for this question's choices only
+      document.querySelectorAll(`.choice[data-q="${qIndex}"]`).forEach((btn) => {
+        btn.classList.remove("selected");
+      });
+      document.querySelector(`.choice[data-q="${qIndex}"][data-c="${cIndex}"]`).classList.add("selected");
+
+      updateProgress();
+    }
+
+    function updateProgress() {
+      const answeredCount = Object.keys(studentAnswers).length;
+      const total = questions.length;
+      const percent = (answeredCount / total) * 100;
+
+      document.getElementById("progressFill").style.width = `${percent}%`;
+      document.getElementById("progressLabel").textContent = `${answeredCount} of ${total} answered`;
+
+      const finishBtn = document.getElementById("finishBtn");
+      if (answeredCount === total) {
+        finishBtn.disabled = false;
+        finishBtn.textContent = "Finish Quiz";
+      } else {
+        finishBtn.disabled = true;
+        finishBtn.textContent = "Answer all questions to finish";
+      }
+    }
+
+    function finishQuiz() {
+      quizFinished = true;
+      let correctCount = 0;
+
+      questions.forEach((q, qIndex) => {
+        const studentChoiceIndex = studentAnswers[qIndex];
+
+        q.choices.forEach((choice, cIndex) => {
+          const btn = document.querySelector(`.choice[data-q="${qIndex}"][data-c="${cIndex}"]`);
+          btn.onclick = null; // disable further clicking
+
+          if (choice.isCorrect) {
+            btn.classList.add("correct-answer");
+            btn.innerHTML += `<span class="mark">✓</span>`;
+          } else if (cIndex === studentChoiceIndex) {
+            btn.classList.add("wrong-answer");
+            btn.innerHTML += `<span class="mark">✗</span>`;
+          }
+        });
+
+        if (q.choices[studentChoiceIndex]?.isCorrect) correctCount++;
+      });
+
+      // Show result popup
+      document.getElementById("resultScore").textContent = `${correctCount}/${questions.length}`;
+      document.getElementById("resultOverlay").style.display = "flex";
+
+// Fire confetti (only if the library loaded successfully)
+      if (typeof confetti === "function") {
+        confetti({
+          particleCount: 150,
+          spread: 90,
+          origin: { y: 0.6 },
+        });
+      } else {
+        console.warn("Confetti library didn't load — skipping animation.");
+      }
+      saveQuizAttempt(correctCount);
+    }
+async function saveQuizAttempt(correctCount) {
+      const answersRecord = questions.map((q, qIndex) => ({
+        questionText: q.questionText,
+        selectedChoiceIndex: studentAnswers[qIndex],
+        wasCorrect: q.choices[studentAnswers[qIndex]]?.isCorrect || false,
+      }));
+
+      try {
+        await fetch("/api/quiz-attempts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            telegramId,
+            grade,
+            subject,
+            week,
+            score: correctCount,
+            totalQuestions: questions.length,
+            answers: answersRecord,
+          }),
+        });
+      } catch (err) {
+        console.error("Failed to save quiz attempt:", err);
+      }
+    }
+    function goBack() {
+      window.location.href = `subject-select.html?grade=${grade}`;
+    }
+    function reviewAnswers() {
+  document.getElementById("resultOverlay").style.display = "none";
+}
+
+    function renderMathIn(container) {
+      if (window.renderMathInElement) {
+        renderMathInElement(container, {
+          delimiters: [{ left: "$", right: "$", display: false }],
+          throwOnError: false,
+        });
+      }
+    }
+
+    document.getElementById("finishBtn").addEventListener("click", finishQuiz);
+
+    fetchCurrentWeek().then(() => {
+  fetchQuestions();
+});
+  </script>
+</body>
+</html>
