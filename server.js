@@ -318,7 +318,7 @@ bot.hears("📚 All Quizzes", async (ctx) => {
   await ctx.reply("Browse quizzes by grade, subject, and unit:", {
     reply_markup: {
       inline_keyboard: [
-        [{ text: "📚 Browse Archive", web_app: { url: `${baseUrl}/archive-grade.html` } }],
+        [{ text: "📚 Browse All Quizzes", web_app: { url: `${baseUrl}/archive-grade.html` } }],
       ],
     },
   });

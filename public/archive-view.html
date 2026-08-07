@@ -11,7 +11,7 @@
       font-family: Arial, sans-serif;
       background-color: #f4f4f4;
       margin: 0;
-      padding: 20px;
+      padding: 20px 20px 100px 20px;
     }
     h1 { color: #2c3e50; font-size: 20px; text-align: center; }
     .question-card {
@@ -23,19 +23,65 @@
     .question-text { font-size: 16px; font-weight: bold; margin-bottom: 10px; }
     .question-img { max-width: 100%; border-radius: 6px; margin-bottom: 10px; }
     .choice {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: #f9f9f9;
+      border: 2px solid #ddd;
       padding: 10px;
       border-radius: 6px;
       margin-bottom: 6px;
       font-size: 14px;
+      cursor: pointer;
+      box-sizing: border-box;
     }
-    .choice.correct { background: #eafaf1; color: #27ae60; font-weight: bold; }
-    .choice.wrong { background: #f9f9f9; color: #555; }
+    .choice.selected { border-color: #2c3e50; background: #eaf0f6; }
+    .choice.correct-answer { border-color: #27ae60; background: #eafaf1; }
+    .choice.wrong-answer { border-color: #c0392b; background: #fdecea; }
+    .mark { float: right; font-weight: bold; }
+
+    .finish-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: white;
+      padding: 15px 20px;
+      box-shadow: 0 -2px 6px rgba(0,0,0,0.1);
+    }
+    .finish-btn {
+      width: 100%;
+      padding: 14px;
+      background: #2c3e50;
+      color: white;
+      font-size: 15px;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .finish-btn:disabled { background: #aaa; cursor: not-allowed; }
+    .score-banner {
+      text-align: center;
+      background: #eafaf1;
+      color: #27ae60;
+      font-weight: bold;
+      padding: 12px;
+      border-radius: 8px;
+      margin: 16px 0;
+      display: none;
+    }
   </style>
 </head>
 <body>
   <h1 id="pageTitle">Unit Review</h1>
+  <p style="text-align:center; color:#777; font-size:13px;">Practice mode — try it yourself, results aren't saved or tracked.</p>
+
+  <div class="score-banner" id="scoreBanner"></div>
   <div id="questionsContainer">
     <p style="text-align:center; padding: 30px;">Loading...</p>
+  </div>
+
+  <div class="finish-bar">
+    <button class="finish-btn" id="finishBtn" disabled>Answer all questions to finish</button>
   </div>
 
   <script>
@@ -54,9 +100,12 @@
       });
     }
 
+    let questions = [];
+    const studentAnswers = {};
+    let quizFinished = false;
+
     async function loadQuestions() {
       const container = document.getElementById("questionsContainer");
-
       try {
         const url = `/api/archive-questions?grade=${grade}&subject=${subject}&unit=${unit}`;
         const response = await fetch(url);
@@ -66,38 +115,85 @@
           container.innerHTML = `<p style="text-align:center; color:red;">⚠ ${result.error}</p>`;
           return;
         }
-
         if (result.questions.length === 0) {
           container.innerHTML = `<p style="text-align:center; color:#999; padding: 30px;">No questions available yet for this unit.</p>`;
           return;
         }
 
-        renderQuestions(result.questions);
+        questions = result.questions;
+        renderQuestions();
       } catch (err) {
         container.innerHTML = `<p style="text-align:center; color:red;">⚠ Network error loading questions.</p>`;
       }
     }
 
-    function renderQuestions(questions) {
+    function renderQuestions() {
       const container = document.getElementById("questionsContainer");
-      let html = "";
+      container.innerHTML = "";
 
-      questions.forEach((q, index) => {
-        html += `<div class="question-card">`;
-        html += `<div class="question-text">Q${index + 1}. ${q.questionText}</div>`;
-        if (q.imageUrl) {
-          html += `<img class="question-img" src="${q.imageUrl}">`;
-        }
-        q.choices.forEach((choice) => {
-          const cls = choice.isCorrect ? "correct" : "wrong";
-          const mark = choice.isCorrect ? "✓ " : "";
-          html += `<div class="choice ${cls}">${mark}${choice.text}</div>`;
+      questions.forEach((q, qIndex) => {
+        const card = document.createElement("div");
+        card.className = "question-card";
+        let html = `<div class="question-text">Q${qIndex + 1}. ${q.questionText}</div>`;
+        if (q.imageUrl) html += `<img class="question-img" src="${q.imageUrl}">`;
+        q.choices.forEach((choice, cIndex) => {
+          html += `<button class="choice" data-q="${qIndex}" data-c="${cIndex}" onclick="selectChoice(${qIndex}, ${cIndex})">${choice.text}</button>`;
         });
-        html += `</div>`;
+        card.innerHTML = html;
+        container.appendChild(card);
       });
 
-      container.innerHTML = html;
       renderMathIn(container);
+    }
+
+    function selectChoice(qIndex, cIndex) {
+      if (quizFinished) return;
+      studentAnswers[qIndex] = cIndex;
+
+      document.querySelectorAll(`.choice[data-q="${qIndex}"]`).forEach((btn) => btn.classList.remove("selected"));
+      document.querySelector(`.choice[data-q="${qIndex}"][data-c="${cIndex}"]`).classList.add("selected");
+
+      updateFinishState();
+    }
+
+    function updateFinishState() {
+      const answeredCount = Object.keys(studentAnswers).length;
+      const finishBtn = document.getElementById("finishBtn");
+      if (answeredCount === questions.length) {
+        finishBtn.disabled = false;
+        finishBtn.textContent = "Finish";
+      } else {
+        finishBtn.disabled = true;
+        finishBtn.textContent = `Answer all questions to finish (${answeredCount}/${questions.length})`;
+      }
+    }
+
+    function finishReview() {
+      quizFinished = true;
+      let correctCount = 0;
+
+      questions.forEach((q, qIndex) => {
+        const studentChoiceIndex = studentAnswers[qIndex];
+        q.choices.forEach((choice, cIndex) => {
+          const btn = document.querySelector(`.choice[data-q="${qIndex}"][data-c="${cIndex}"]`);
+          btn.onclick = null;
+          if (choice.isCorrect) {
+            btn.classList.add("correct-answer");
+            btn.innerHTML += `<span class="mark">✓</span>`;
+          } else if (cIndex === studentChoiceIndex) {
+            btn.classList.add("wrong-answer");
+            btn.innerHTML += `<span class="mark">✗</span>`;
+          }
+        });
+        if (q.choices[studentChoiceIndex]?.isCorrect) correctCount++;
+      });
+
+      const banner = document.getElementById("scoreBanner");
+      banner.textContent = `You scored ${correctCount}/${questions.length}`;
+      banner.style.display = "block";
+      window.scrollTo({ top: 0, behavior: "smooth" });
+
+      document.getElementById("finishBtn").style.display = "none";
     }
 
     function renderMathIn(container) {
@@ -108,6 +204,8 @@
         });
       }
     }
+
+    document.getElementById("finishBtn").addEventListener("click", finishReview);
 
     loadQuestions();
   </script>
