@@ -190,6 +190,12 @@ if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData
 } else {
   telegramId = "test_user_browser";
 }
+if (window.Telegram && window.Telegram.WebApp) {
+  Telegram.WebApp.BackButton.show();
+  Telegram.WebApp.BackButton.onClick(() => {
+    window.location.href = `subject-select.html?grade=${grade}`;
+  });
+}
 
 async function fetchCurrentWeek() {
   const url = `/api/current-week?grade=${grade}&subject=${subject}`;

@@ -105,6 +105,13 @@ if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData
   telegramId = "test_user_browser";
 }
 
+// Show Telegram's native back button, and send the student back to grade selection when tapped
+if (window.Telegram && window.Telegram.WebApp) {
+  Telegram.WebApp.BackButton.show();
+  Telegram.WebApp.BackButton.onClick(() => {
+    window.location.href = "weekly-quiz.html";
+  });
+}
 let completedSubjects = []; // starts empty, filled in by fetchCompletedSubjects() below
 
     function renderSubjects() {

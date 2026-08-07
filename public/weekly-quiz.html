@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>This Week's Quiz</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -51,6 +52,9 @@
       // Take the student to the subject selection page, passing the grade along in the URL
       window.location.href = `subject-select.html?grade=${grade}`;
     }
+    if (window.Telegram && window.Telegram.WebApp) {
+  Telegram.WebApp.BackButton.hide(); // no back button on the very first page
+}
   </script>
 </body>
 </html>
