@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Unit Review</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 { color: #2c3e50; font-size: 20px; text-align: center; }
+    .question-card {
+      background: white;
+      margin: 16px 0;
+      padding: 18px;
+      border-radius: 10px;
+    }
+    .question-text { font-size: 16px; font-weight: bold; margin-bottom: 10px; }
+    .question-img { max-width: 100%; border-radius: 6px; margin-bottom: 10px; }
+    .choice {
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+    .choice.correct { background: #eafaf1; color: #27ae60; font-weight: bold; }
+    .choice.wrong { background: #f9f9f9; color: #555; }
+  </style>
+</head>
+<body>
+  <h1 id="pageTitle">Unit Review</h1>
+  <div id="questionsContainer">
+    <p style="text-align:center; padding: 30px;">Loading...</p>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const grade = params.get("grade");
+    const subject = params.get("subject");
+    const unit = params.get("unit");
+
+    const subjectNames = { bio: "Biology", math: "Math", chem: "Chemistry", phys: "Physics" };
+    document.getElementById("pageTitle").textContent = `Grade ${grade} ${subjectNames[subject]} — Unit ${unit}`;
+
+    if (window.Telegram && window.Telegram.WebApp) {
+      Telegram.WebApp.BackButton.show();
+      Telegram.WebApp.BackButton.onClick(() => {
+        window.location.href = `archive-unit.html?grade=${grade}&subject=${subject}`;
+      });
+    }
+
+    async function loadQuestions() {
+      const container = document.getElementById("questionsContainer");
+
+      try {
+        const url = `/api/archive-questions?grade=${grade}&subject=${subject}&unit=${unit}`;
+        const response = await fetch(url);
+        const result = await response.json();
+
+        if (!response.ok) {
+          container.innerHTML = `<p style="text-align:center; color:red;">⚠ ${result.error}</p>`;
+          return;
+        }
+
+        if (result.questions.length === 0) {
+          container.innerHTML = `<p style="text-align:center; color:#999; padding: 30px;">No questions available yet for this unit.</p>`;
+          return;
+        }
+
+        renderQuestions(result.questions);
+      } catch (err) {
+        container.innerHTML = `<p style="text-align:center; color:red;">⚠ Network error loading questions.</p>`;
+      }
+    }
+
+    function renderQuestions(questions) {
+      const container = document.getElementById("questionsContainer");
+      let html = "";
+
+      questions.forEach((q, index) => {
+        html += `<div class="question-card">`;
+        html += `<div class="question-text">Q${index + 1}. ${q.questionText}</div>`;
+        if (q.imageUrl) {
+          html += `<img class="question-img" src="${q.imageUrl}">`;
+        }
+        q.choices.forEach((choice) => {
+          const cls = choice.isCorrect ? "correct" : "wrong";
+          const mark = choice.isCorrect ? "✓ " : "";
+          html += `<div class="choice ${cls}">${mark}${choice.text}</div>`;
+        });
+        html += `</div>`;
+      });
+
+      container.innerHTML = html;
+      renderMathIn(container);
+    }
+
+    function renderMathIn(container) {
+      if (window.renderMathInElement) {
+        renderMathInElement(container, {
+          delimiters: [{ left: "$", right: "$", display: false }],
+          throwOnError: false,
+        });
+      }
+    }
+
+    loadQuestions();
+  </script>
+</body>
+</html>

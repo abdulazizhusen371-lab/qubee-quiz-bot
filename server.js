@@ -112,6 +112,26 @@ app.get("/api/quiz-questions", async (req, res) => {
     res.status(500).json({ error: "Server error while fetching quiz questions." });
   }
 });
+// API endpoint: fetch all questions for a grade/subject/unit (archive view — combines all weeks)
+app.get("/api/archive-questions", async (req, res) => {
+  try {
+    const { grade, subject, unit } = req.query;
+
+    if (!grade || !subject || !unit) {
+      return res.status(400).json({ error: "Missing grade, subject, or unit." });
+    }
+
+    const questions = await questionsCollection
+      .find({ grade, subject, unit })
+      .sort({ createdAt: 1 })
+      .toArray();
+
+    res.json({ success: true, questions });
+  } catch (err) {
+    console.error("Error fetching archive questions:", err);
+    res.status(500).json({ error: "Server error while fetching archive questions." });
+  }
+});
 
 app.post("/api/quiz-attempts", async (req, res) => {
   try {
@@ -294,7 +314,14 @@ bot.hears("📝 This Week's Quiz", async (ctx) => {
 });
 
 bot.hears("📚 All Quizzes", async (ctx) => {
-  await ctx.reply("Quiz archive coming soon.");
+  const baseUrl = process.env.BASE_URL || "http://localhost:3000";
+  await ctx.reply("Browse quizzes by grade, subject, and unit:", {
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: "📚 Browse Archive", web_app: { url: `${baseUrl}/archive-grade.html` } }],
+      ],
+    },
+  });
 });
 
 bot.hears("🎓 Model Exams", async (ctx) => {
