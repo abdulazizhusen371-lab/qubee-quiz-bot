@@ -206,7 +206,7 @@ async function fetchCurrentWeek() {
 
 let questions = []; // starts empty, filled in by fetchQuestions() below
 
-async function fetchQuestions() {
+async function fetchQuestions(existingAttempt) {
   const container = document.getElementById("questionsContainer");
   container.innerHTML = `<p style="text-align:center; padding: 30px;">Loading questions...</p>`;
 
@@ -226,11 +226,55 @@ async function fetchQuestions() {
     }
 
     questions = result.questions;
-    renderQuestions();
-    updateProgress();
+
+    if (existingAttempt) {
+      // Student already completed this quiz — show review-only mode, no retaking
+      questions.forEach((q, qIndex) => {
+        const savedAnswer = existingAttempt.answers[qIndex];
+        if (savedAnswer) {
+          studentAnswers[qIndex] = savedAnswer.selectedChoiceIndex;
+        }
+      });
+
+      renderQuestions();
+      showAlreadyCompletedReview(existingAttempt);
+    } else {
+      renderQuestions();
+      updateProgress();
+    }
   } catch (err) {
     container.innerHTML = `<p style="text-align:center; padding: 30px; color: red;">⚠ Network error loading quiz.</p>`;
   }
+}
+
+function showAlreadyCompletedReview(existingAttempt) {
+  quizFinished = true;
+
+  questions.forEach((q, qIndex) => {
+    const studentChoiceIndex = studentAnswers[qIndex];
+
+    q.choices.forEach((choice, cIndex) => {
+      const btn = document.querySelector(`.choice[data-q="${qIndex}"][data-c="${cIndex}"]`);
+      if (!btn) return;
+      btn.onclick = null;
+
+      if (choice.isCorrect) {
+        btn.classList.add("correct-answer");
+        btn.innerHTML += `<span class="mark">✓</span>`;
+      } else if (cIndex === studentChoiceIndex) {
+        btn.classList.add("wrong-answer");
+        btn.innerHTML += `<span class="mark">✗</span>`;
+      }
+    });
+  });
+
+  // Hide the finish bar entirely — nothing left to submit
+  document.querySelector(".finish-bar").style.display = "none";
+
+  // Update progress bar to show it's fully done, with a note
+  document.getElementById("progressFill").style.width = "100%";
+  document.getElementById("progressLabel").textContent =
+    `Already completed — you scored ${existingAttempt.score}/${existingAttempt.totalQuestions}`;
 }
     // Tracks which choice index the student picked for each question
     // e.g. { 0: 1, 1: 0 } means "for question 0, picked choice 1"
@@ -377,9 +421,21 @@ async function saveQuizAttempt(correctCount) {
 
     document.getElementById("finishBtn").addEventListener("click", finishQuiz);
 
-    fetchCurrentWeek().then(() => {
-  fetchQuestions();
+    fetchCurrentWeek().then(async () => {
+  const existingAttempt = await checkExistingAttempt();
+  fetchQuestions(existingAttempt);
 });
+
+async function checkExistingAttempt() {
+  try {
+    const url = `/api/quiz-attempts/single?telegramId=${telegramId}&grade=${grade}&subject=${subject}&week=${week}`;
+    const response = await fetch(url);
+    const result = await response.json();
+    return result.attempt;
+  } catch (err) {
+    return null; // if this check fails, just treat it as a fresh attempt
+  }
+}
   </script>
 </body>
 </html>

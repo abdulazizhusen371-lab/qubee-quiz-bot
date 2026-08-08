@@ -220,6 +220,23 @@ app.get("/api/analytics/attempt-count", async (req, res) => {
     res.status(500).json({ error: "Server error." });
   }
 });
+// API endpoint: check if a student already has an attempt for this grade/subject/week
+app.get("/api/quiz-attempts/single", async (req, res) => {
+  try {
+    const { telegramId, grade, subject, week } = req.query;
+
+    if (!telegramId || !grade || !subject || !week) {
+      return res.status(400).json({ error: "Missing required parameters." });
+    }
+
+    const attempt = await quizAttemptsCollection.findOne({ telegramId, grade, subject, week });
+
+    res.json({ success: true, attempt: attempt || null });
+  } catch (err) {
+    console.error("Error fetching single attempt:", err);
+    res.status(500).json({ error: "Server error." });
+  }
+});
 
 app.post("/api/quiz-attempts", async (req, res) => {
   try {
