@@ -156,6 +156,70 @@ app.get("/api/archive-questions", async (req, res) => {
     res.status(500).json({ error: "Server error while fetching archive questions." });
   }
 });
+// API endpoint: analytics — student counts by grade
+app.get("/api/analytics/students-by-grade", async (req, res) => {
+  try {
+    const students = await studentsCollection.find({}).toArray();
+    // Note: students collection doesn't store grade directly yet —
+    // so this counts total registered students for now
+    res.json({ success: true, totalStudents: students.length });
+  } catch (err) {
+    console.error("Error fetching student analytics:", err);
+    res.status(500).json({ error: "Server error." });
+  }
+});
+
+// API endpoint: analytics — top scorers for a specific grade/subject/week
+app.get("/api/analytics/top-scorers", async (req, res) => {
+  try {
+    const { grade, subject, week } = req.query;
+
+    if (!grade || !subject || !week) {
+      return res.status(400).json({ error: "Missing grade, subject, or week." });
+    }
+
+    const attempts = await quizAttemptsCollection
+      .find({ grade, subject, week })
+      .sort({ score: -1 })
+      .limit(3)
+      .toArray();
+
+    // Look up each student's name from their telegramId
+    const results = await Promise.all(
+      attempts.map(async (attempt) => {
+        const student = await studentsCollection.findOne({ telegramId: attempt.telegramId });
+        return {
+          name: student ? student.name : "Unknown",
+          score: attempt.score,
+          totalQuestions: attempt.totalQuestions,
+        };
+      })
+    );
+
+    res.json({ success: true, topScorers: results });
+  } catch (err) {
+    console.error("Error fetching top scorers:", err);
+    res.status(500).json({ error: "Server error." });
+  }
+});
+
+// API endpoint: analytics — how many students took a specific grade/subject/week quiz
+app.get("/api/analytics/attempt-count", async (req, res) => {
+  try {
+    const { grade, subject, week } = req.query;
+
+    if (!grade || !subject || !week) {
+      return res.status(400).json({ error: "Missing grade, subject, or week." });
+    }
+
+    const count = await quizAttemptsCollection.countDocuments({ grade, subject, week });
+
+    res.json({ success: true, count });
+  } catch (err) {
+    console.error("Error fetching attempt count:", err);
+    res.status(500).json({ error: "Server error." });
+  }
+});
 
 app.post("/api/quiz-attempts", async (req, res) => {
   try {

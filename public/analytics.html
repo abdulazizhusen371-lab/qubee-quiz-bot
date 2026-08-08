@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Analytics</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 { color: #2c3e50; }
+    .card {
+      background: white;
+      padding: 18px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      max-width: 600px;
+    }
+    select {
+      padding: 8px;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+    button {
+      padding: 8px 16px;
+      background: #2c3e50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .stat-number {
+      font-size: 32px;
+      font-weight: bold;
+      color: #2c3e50;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      text-align: left;
+      padding: 8px;
+      border-bottom: 1px solid #eee;
+    }
+  </style>
+</head>
+<body>
+  <h1>Analytics Dashboard</h1>
+
+  <div class="card">
+    <strong>Total Registered Students</strong>
+    <div class="stat-number" id="totalStudents">-</div>
+  </div>
+
+  <div class="card">
+    <strong>Top Scorers & Attempts</strong><br><br>
+    <select id="gradeSelect">
+      <option value="9">Grade 9</option>
+      <option value="10">Grade 10</option>
+      <option value="11">Grade 11</option>
+      <option value="12">Grade 12</option>
+    </select>
+    <select id="subjectSelect">
+      <option value="bio">Biology</option>
+      <option value="math">Math</option>
+      <option value="chem">Chemistry</option>
+      <option value="phys">Physics</option>
+    </select>
+    <select id="weekSelect"></select>
+    <button id="checkBtn">Check</button>
+
+    <p>Total attempts: <strong id="attemptCount">-</strong></p>
+
+    <table id="scorersTable" style="display:none;">
+      <thead>
+        <tr><th>#</th><th>Name</th><th>Score</th></tr>
+      </thead>
+      <tbody id="scorersBody"></tbody>
+    </table>
+    <p id="noScorers" style="display:none; color:#999;">No attempts yet for this selection.</p>
+  </div>
+
+  <script>
+    // Fill week dropdown 1-24
+    const weekSelect = document.getElementById("weekSelect");
+    for (let i = 1; i <= 24; i++) {
+      const opt = document.createElement("option");
+      opt.value = i;
+      opt.textContent = `Week ${i}`;
+      weekSelect.appendChild(opt);
+    }
+
+    async function loadTotalStudents() {
+      try {
+        const res = await fetch("/api/analytics/students-by-grade");
+        const data = await res.json();
+        document.getElementById("totalStudents").textContent = data.totalStudents;
+      } catch (err) {
+        document.getElementById("totalStudents").textContent = "Error";
+      }
+    }
+
+    document.getElementById("checkBtn").addEventListener("click", async () => {
+      const grade = document.getElementById("gradeSelect").value;
+      const subject = document.getElementById("subjectSelect").value;
+      const week = document.getElementById("weekSelect").value;
+
+      try {
+        const countRes = await fetch(`/api/analytics/attempt-count?grade=${grade}&subject=${subject}&week=${week}`);
+        const countData = await countRes.json();
+        document.getElementById("attemptCount").textContent = countData.count;
+
+        const scorersRes = await fetch(`/api/analytics/top-scorers?grade=${grade}&subject=${subject}&week=${week}`);
+        const scorersData = await scorersRes.json();
+
+        const table = document.getElementById("scorersTable");
+        const tbody = document.getElementById("scorersBody");
+        const noScorers = document.getElementById("noScorers");
+
+        if (scorersData.topScorers.length === 0) {
+          table.style.display = "none";
+          noScorers.style.display = "block";
+        } else {
+          noScorers.style.display = "none";
+          table.style.display = "table";
+          tbody.innerHTML = "";
+          scorersData.topScorers.forEach((s, i) => {
+            tbody.innerHTML += `<tr><td>${i + 1}</td><td>${s.name}</td><td>${s.score}/${s.totalQuestions}</td></tr>`;
+          });
+        }
+      } catch (err) {
+        alert("Error loading analytics.");
+      }
+    });
+
+    loadTotalStudents();
+  </script>
+</body>
+</html>
