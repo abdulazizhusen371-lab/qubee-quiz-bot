@@ -346,7 +346,7 @@ async function saveQuizAttempt(correctCount) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            telegramId,
+            telegramId: String(telegramId),
             grade,
             subject,
             week,
