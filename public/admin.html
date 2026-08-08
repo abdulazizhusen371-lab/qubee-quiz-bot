@@ -91,14 +91,8 @@
       </select>
 
       <select id="weekSelect">
-        <option value="">Select Week</option>
-        <option value="1">Week 1</option>
-        <option value="2">Week 2</option>
-        <option value="3">Week 3</option>
-        <option value="4">Week 4</option>
-        <option value="5">Week 5</option>
-        <option value="6">Week 6</option>
-      </select>
+  <option value="">Select Week</option>
+</select>
     </div>
 
     <p><strong>Paste your questions below</strong> (use # for question, * for choice, ** for correct choice):</p>
@@ -110,7 +104,6 @@
 *Cell wall"></textarea>
 
     <br>
-    <button id="parseBtn">Parse Questions</button>
     <p><strong>Optional: attach an image to your next question</strong> (uploads immediately, then reference it in your text using the marker shown below):</p>
 <input type="file" id="imageInput" accept="image/*">
 <button id="uploadImageBtn" type="button">Upload Image</button>
@@ -142,6 +135,15 @@
 
     const subjectSelect = document.getElementById("subjectSelect");
     const unitSelect = document.getElementById("unitSelect");
+
+    // Fill the week dropdown with 24 weeks (roughly 6 months of weekly quizzes)
+const weekSelect = document.getElementById("weekSelect");
+for (let i = 1; i <= 24; i++) {
+  const option = document.createElement("option");
+  option.value = i;
+  option.textContent = `Week ${i}`;
+  weekSelect.appendChild(option);
+}
 
     // "addEventListener" means: run this function whenever this specific thing happens
     subjectSelect.addEventListener("change", () => {
@@ -301,7 +303,9 @@ uploadImageBtn.addEventListener("click", async () => {
     const result = await response.json();
 
     if (response.ok) {
-      uploadStatus.innerHTML = `✅ Uploaded! Add this exact line right after your question's text: <br><code>![img](${result.imageUrl})</code>`;
+      uploadStatus.innerHTML = `✅ Uploaded! Click below to copy, then paste it right after your question's text:<br>
+  <code style="font-size:12px;">![img](${result.imageUrl})</code>
+  <button onclick="copyImageMarker('${result.imageUrl}')" style="margin-left:8px; padding:4px 10px; background:#2980b9;">📋 Copy</button>`;
       uploadStatus.style.color = "green";
     } else {
       uploadStatus.textContent = `⚠ ${result.error}`;
@@ -588,6 +592,12 @@ async function deleteQuestion(id) {
   } catch (err) {
     alert("Network error while deleting.");
   }
+}
+function copyImageMarker(url) {
+  const markerText = `![img](${url})`;
+  navigator.clipboard.writeText(markerText).then(() => {
+    alert("Copied! Now paste it into your question text.");
+  });
 }
   </script>
 </body>
