@@ -363,8 +363,23 @@ function showAlreadyCompletedReview(existingAttempt) {
       });
 
       // Show result popup
+      const percentage = (correctCount / questions.length) * 100;
+      let feedbackMessage;
+      if (percentage === 100) {
+        feedbackMessage = "🌟 Perfect score! Outstanding work!";
+      } else if (percentage >= 80) {
+        feedbackMessage = "🎉 Great job! You really know this material.";
+      } else if (percentage >= 60) {
+        feedbackMessage = "👍 Good effort! A bit more practice will help.";
+      } else if (percentage >= 40) {
+        feedbackMessage = "📚 Keep studying — review the material and try the archive practice.";
+      } else {
+        feedbackMessage = "💪 Don't worry — go back to the videos and try the archive for practice.";
+      }
+      document.getElementById("resultMessage").textContent = feedbackMessage;
       document.getElementById("resultScore").textContent = `${correctCount}/${questions.length}`;
       document.getElementById("resultOverlay").style.display = "flex";
+
 
 // Fire confetti (only if the library loaded successfully)
       if (typeof confetti === "function") {
