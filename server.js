@@ -11,7 +11,31 @@ const { Bot, Keyboard } = require("grammy");
 
 const app = express();
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
+// Serve most files normally (like weekly-quiz.html, quiz.html, etc.)
+app.use(express.static(path.join(__dirname, "public"), {
+  index: false, // don't auto-serve index.html
+}));
+
+// Simple password gate specifically for admin.html
+app.get("/admin.html", (req, res) => {
+  const providedPassword = req.query.password;
+
+  if (providedPassword === process.env.ADMIN_PASSWORD) {
+    res.sendFile(path.join(__dirname, "public", "admin.html"));
+  } else {
+    res.send(`
+      <html>
+        <body style="font-family: Arial; text-align:center; padding-top: 100px;">
+          <h2>Admin Login</h2>
+          <form method="GET" action="/admin.html">
+            <input type="password" name="password" placeholder="Enter admin password" style="padding:10px; font-size:16px;">
+            <button type="submit" style="padding:10px 20px; font-size:16px;">Login</button>
+          </form>
+        </body>
+      </html>
+    `);
+  }
+});
 
 const client = new MongoClient(process.env.MONGO_URI);
 let questionsCollection;
