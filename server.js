@@ -244,6 +244,75 @@ const count = await quizAttemptsCollection.countDocuments(filter);
     res.status(500).json({ error: "Server error." });
   }
 });
+// Average score for a grade/subject/week
+app.get("/api/analytics/average-score", async (req, res) => {
+  try {
+    const { grade, subject, week } = req.query;
+    if (!grade || !subject || !week) {
+      return res.status(400).json({ error: "Missing grade, subject, or week." });
+    }
+
+    const filter = { grade, week };
+    if (subject !== "all") filter.subject = subject;
+
+    const attempts = await quizAttemptsCollection.find(filter).toArray();
+
+    if (attempts.length === 0) {
+      return res.json({ success: true, averagePercent: null, attemptCount: 0 });
+    }
+
+    const totalPercent = attempts.reduce((sum, a) => sum + (a.score / a.totalQuestions) * 100, 0);
+    const averagePercent = totalPercent / attempts.length;
+
+    res.json({ success: true, averagePercent: Math.round(averagePercent), attemptCount: attempts.length });
+  } catch (err) {
+    console.error("Error calculating average score:", err);
+    res.status(500).json({ error: "Server error." });
+  }
+});
+
+// Participation rate: how many registered students attempted vs total
+app.get("/api/analytics/participation", async (req, res) => {
+  try {
+    const { grade, subject, week } = req.query;
+    if (!grade || !subject || !week) {
+      return res.status(400).json({ error: "Missing grade, subject, or week." });
+    }
+
+    const totalStudents = await studentsCollection.countDocuments({});
+
+    const filter = { grade, week };
+    if (subject !== "all") filter.subject = subject;
+    const attemptedCount = (await quizAttemptsCollection.distinct("telegramId", filter)).length;
+
+    res.json({ success: true, attemptedCount, totalStudents });
+  } catch (err) {
+    console.error("Error calculating participation:", err);
+    res.status(500).json({ error: "Server error." });
+  }
+});
+
+// Per-subject breakdown: attempt counts for all 4 subjects at once, for one grade/week
+app.get("/api/analytics/subject-breakdown", async (req, res) => {
+  try {
+    const { grade, week } = req.query;
+    if (!grade || !week) {
+      return res.status(400).json({ error: "Missing grade or week." });
+    }
+
+    const subjects = ["bio", "math", "chem", "phys"];
+    const breakdown = {};
+
+    for (const subject of subjects) {
+      breakdown[subject] = await quizAttemptsCollection.countDocuments({ grade, subject, week });
+    }
+
+    res.json({ success: true, breakdown });
+  } catch (err) {
+    console.error("Error calculating subject breakdown:", err);
+    res.status(500).json({ error: "Server error." });
+  }
+});
 // API endpoint: check if a student already has an attempt for this grade/subject/week
 app.get("/api/quiz-attempts/single", async (req, res) => {
   try {
@@ -443,6 +512,25 @@ bot.hears("📚 All Quizzes", async (ctx) => {
 
 bot.hears("🎓 Model Exams", async (ctx) => {
   await ctx.reply("No model exam yet.");
+});
+bot.command("admin", async (ctx) => {
+  const telegramId = ctx.from.id;
+  const adminIds = (process.env.ADMIN_TELEGRAM_IDS || "").split(",").map(id => Number(id.trim()));
+
+  if (!adminIds.includes(telegramId)) {
+    return; // silently ignore — don't reveal that an admin command exists
+  }
+
+  const baseUrl = process.env.BASE_URL || "http://localhost:3000";
+
+  await ctx.reply("Admin tools:", {
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: "🛠 Admin Dashboard", web_app: { url: `${baseUrl}/admin.html` } }],
+        [{ text: "📊 Analytics Dashboard", web_app: { url: `${baseUrl}/analytics.html` } }],
+      ],
+    },
+  });
 });
 // Catch-all: responds to any other text message that isn't a recognized command/button
 bot.on("message:text", async (ctx) => {

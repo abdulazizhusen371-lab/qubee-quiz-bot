@@ -74,6 +74,16 @@
     <button id="checkBtn">Check</button>
 
     <p>Total attempts: <strong id="attemptCount">-</strong></p>
+<p>Average score: <strong id="averageScore">-</strong></p>
+<p>Participation: <strong id="participation">-</strong></p>
+
+<div style="margin-top:15px; padding-top:15px; border-top:1px solid #eee;">
+  <strong>Subject Breakdown (Grade + Week, all subjects):</strong>
+  <table>
+    <thead><tr><th>Subject</th><th>Attempts</th></tr></thead>
+    <tbody id="breakdownBody"></tbody>
+  </table>
+</div>
 
     <table id="scorersTable" style="display:none;">
       <thead>
@@ -105,37 +115,59 @@
     }
 
     document.getElementById("checkBtn").addEventListener("click", async () => {
-      const grade = document.getElementById("gradeSelect").value;
-      const subject = document.getElementById("subjectSelect").value;
-      const week = document.getElementById("weekSelect").value;
+  const grade = document.getElementById("gradeSelect").value;
+  const subject = document.getElementById("subjectSelect").value;
+  const week = document.getElementById("weekSelect").value;
 
-      try {
-        const countRes = await fetch(`/api/analytics/attempt-count?grade=${grade}&subject=${subject}&week=${week}`);
-        const countData = await countRes.json();
-        document.getElementById("attemptCount").textContent = countData.count;
+  try {
+    const countRes = await fetch(`/api/analytics/attempt-count?grade=${grade}&subject=${subject}&week=${week}`);
+    const countData = await countRes.json();
+    document.getElementById("attemptCount").textContent = countData.count;
 
-        const scorersRes = await fetch(`/api/analytics/top-scorers?grade=${grade}&subject=${subject}&week=${week}`);
-        const scorersData = await scorersRes.json();
+    const scorersRes = await fetch(`/api/analytics/top-scorers?grade=${grade}&subject=${subject}&week=${week}`);
+    const scorersData = await scorersRes.json();
 
-        const table = document.getElementById("scorersTable");
-        const tbody = document.getElementById("scorersBody");
-        const noScorers = document.getElementById("noScorers");
+    const table = document.getElementById("scorersTable");
+    const tbody = document.getElementById("scorersBody");
+    const noScorers = document.getElementById("noScorers");
 
-        if (scorersData.topScorers.length === 0) {
-          table.style.display = "none";
-          noScorers.style.display = "block";
-        } else {
-          noScorers.style.display = "none";
-          table.style.display = "table";
-          tbody.innerHTML = "";
-          scorersData.topScorers.forEach((s, i) => {
-            tbody.innerHTML += `<tr><td>${i + 1}</td><td>${s.name}</td><td>${s.score}/${s.totalQuestions}</td></tr>`;
-          });
-        }
-      } catch (err) {
-        alert("Error loading analytics.");
-      }
+    if (scorersData.topScorers.length === 0) {
+      table.style.display = "none";
+      noScorers.style.display = "block";
+    } else {
+      noScorers.style.display = "none";
+      table.style.display = "table";
+      tbody.innerHTML = "";
+      scorersData.topScorers.forEach((s, i) => {
+        tbody.innerHTML += `<tr><td>${i + 1}</td><td>${s.name}</td><td>${s.score}/${s.totalQuestions}</td></tr>`;
+      });
+    }
+
+    // Average score
+    const avgRes = await fetch(`/api/analytics/average-score?grade=${grade}&subject=${subject}&week=${week}`);
+    const avgData = await avgRes.json();
+    document.getElementById("averageScore").textContent =
+      avgData.averagePercent === null ? "No attempts yet" : `${avgData.averagePercent}%`;
+
+    // Participation
+    const partRes = await fetch(`/api/analytics/participation?grade=${grade}&subject=${subject}&week=${week}`);
+    const partData = await partRes.json();
+    document.getElementById("participation").textContent =
+      `${partData.attemptedCount} of ${partData.totalStudents} registered students`;
+
+    // Subject breakdown (only depends on grade + week, not subject dropdown)
+    const breakdownRes = await fetch(`/api/analytics/subject-breakdown?grade=${grade}&week=${week}`);
+    const breakdownData = await breakdownRes.json();
+    const subjectNames = { bio: "Biology", math: "Math", chem: "Chemistry", phys: "Physics" };
+    const breakdownBody = document.getElementById("breakdownBody");
+    breakdownBody.innerHTML = "";
+    Object.entries(breakdownData.breakdown).forEach(([subj, count]) => {
+      breakdownBody.innerHTML += `<tr><td>${subjectNames[subj]}</td><td>${count}</td></tr>`;
     });
+  } catch (err) {
+    alert("Error loading analytics.");
+  }
+});
 
     loadTotalStudents();
   </script>
