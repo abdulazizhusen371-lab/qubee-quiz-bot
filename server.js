@@ -420,6 +420,10 @@ bot.hears("📚 All Quizzes", async (ctx) => {
 bot.hears("🎓 Model Exams", async (ctx) => {
   await ctx.reply("No model exam yet.");
 });
+// Catch-all: responds to any other text message that isn't a recognized command/button
+bot.on("message:text", async (ctx) => {
+  await ctx.reply("To start the quiz, please write /start");
+});
 
 // ===================== START EVERYTHING =====================
 
