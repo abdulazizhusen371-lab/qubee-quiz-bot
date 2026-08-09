@@ -368,6 +368,8 @@ function showLandingMenu(ctx) {
 
 bot.command("start", async (ctx) => {
   const telegramId = ctx.from.id;
+  const name = ctx.from.first_name;
+
   const existingStudent = await studentsCollection.findOne({ telegramId });
 
   if (existingStudent) {
@@ -375,30 +377,16 @@ bot.command("start", async (ctx) => {
     return showLandingMenu(ctx);
   }
 
-  const keyboard = new Keyboard()
-    .requestContact("📱 Share my phone number")
-    .resized();
-
-  await ctx.reply(
-    "Welcome to Qubee Tutorial Quiz!\n\nTo continue, please share your phone number.",
-    { reply_markup: keyboard }
-  );
-});
-
-bot.on("message:contact", async (ctx) => {
-  const phoneNumber = ctx.message.contact.phone_number;
-  const telegramId = ctx.from.id;
-  const name = ctx.from.first_name;
-
+  // Register the student immediately, no phone number needed
   await studentsCollection.updateOne(
     { telegramId },
-    { $set: { telegramId, name, phoneNumber } },
+    { $set: { telegramId, name } },
     { upsert: true }
   );
 
   console.log(`Saved student: ${name}, ID: ${telegramId}`);
 
-  await ctx.reply(`Thanks ${name}! You're all set.`);
+  await ctx.reply(`Welcome to Qubee Tutorial Quiz, ${name}!`);
   await showLandingMenu(ctx);
 });
 
