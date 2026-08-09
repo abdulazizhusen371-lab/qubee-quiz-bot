@@ -36,9 +36,9 @@
   <h1>All Quizzes — Select Grade</h1>
 
   <div class="grade-grid">
-    <button class="grade-btn" onclick="selectGrade(9)">Grade 9</button>
-    <button class="grade-btn" onclick="selectGrade(10)">Grade 10</button>
-    <button class="grade-btn" onclick="selectGrade(11)">Grade 11</button>
+    <button class="grade-btn" style="opacity:0.4;" onclick="selectGrade(9)">Grade 9</button>
+    <button class="grade-btn" style="opacity:0.4;" onclick="selectGrade(10)">Grade 10</button>
+    <button class="grade-btn" style="opacity:0.4;" onclick="selectGrade(11)">Grade 11</button>
     <button class="grade-btn" onclick="selectGrade(12)">Grade 12</button>
   </div>
 
@@ -47,9 +47,15 @@
       Telegram.WebApp.BackButton.hide();
     }
 
-    function selectGrade(grade) {
-      window.location.href = `archive-subject.html?grade=${grade}`;
-    }
+    const enabledGrades = [12]; // only Grade 12 is active for now — add 9, 10, 11 here later when ready
+
+function selectGrade(grade) {
+  if (!enabledGrades.includes(grade)) {
+    alert("This grade isn't available yet. Currently only Grade 12 is active.");
+    return;
+  }
+  window.location.href = `subject-select.html?grade=${grade}`;
+}
   </script>
 </body>
 </html>

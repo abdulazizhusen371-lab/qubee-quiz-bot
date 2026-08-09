@@ -78,6 +78,25 @@ app.post("/api/upload-image", upload.single("image"), async (req, res) => {
     res.status(500).json({ error: "Server error while uploading image." });
   }
 });
+app.post("/api/questions/cleanup-numbering", async (req, res) => {
+  try {
+    const allQuestions = await questionsCollection.find({}).toArray();
+    let modifiedCount = 0;
+
+    for (const q of allQuestions) {
+      const cleaned = q.questionText.replace(/^\d+[\.\)]\s*/, "");
+      if (cleaned !== q.questionText) {
+        await questionsCollection.updateOne({ _id: q._id }, { $set: { questionText: cleaned } });
+        modifiedCount++;
+      }
+    }
+
+    res.json({ success: true, modifiedCount });
+  } catch (err) {
+    console.error("Error cleaning up numbering:", err);
+    res.status(500).json({ error: "Server error." });
+  }
+});
 
 app.post("/api/questions/save", async (req, res) => {
   try {
@@ -178,8 +197,11 @@ app.get("/api/analytics/top-scorers", async (req, res) => {
       return res.status(400).json({ error: "Missing grade, subject, or week." });
     }
 
+    const filter = { grade, week };
+    if (subject !== "all") filter.subject = subject;
+
     const attempts = await quizAttemptsCollection
-      .find({ grade, subject, week })
+      .find(filter)
       .sort({ score: -1 })
       .limit(3)
       .toArray();
@@ -212,7 +234,9 @@ app.get("/api/analytics/attempt-count", async (req, res) => {
       return res.status(400).json({ error: "Missing grade, subject, or week." });
     }
 
-    const count = await quizAttemptsCollection.countDocuments({ grade, subject, week });
+    const filter = { grade, week };
+if (subject !== "all") filter.subject = subject;
+const count = await quizAttemptsCollection.countDocuments(filter);
 
     res.json({ success: true, count });
   } catch (err) {

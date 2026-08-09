@@ -119,6 +119,7 @@
   <p id="publishStatus"></p>
 </div>
 <button id="loadBtn" style="background-color: #2980b9;">Load Saved Questions</button>
+<button id="cleanupBtn" style="background-color: #8e44ad;">🧹 Clean Up Question Numbering (one-time)</button>
 <div id="savedQuestions"></div>
     <div id="preview">
       <p style="color: #999;">Parsed questions will appear here...</p>
@@ -599,6 +600,18 @@ function copyImageMarker(url) {
     alert("Copied! Now paste it into your question text.");
   });
 }
+document.getElementById("cleanupBtn").addEventListener("click", async () => {
+  const confirmed = confirm("This will remove leading numbers (like '6. ') from ALL saved questions in the database. Continue?");
+  if (!confirmed) return;
+
+  try {
+    const response = await fetch("/api/questions/cleanup-numbering", { method: "POST" });
+    const result = await response.json();
+    alert(`Done! Cleaned ${result.modifiedCount} question(s).`);
+  } catch (err) {
+    alert("Error running cleanup.");
+  }
+});
   </script>
 </body>
 </html>
