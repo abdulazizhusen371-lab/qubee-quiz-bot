@@ -351,11 +351,26 @@ app.post("/api/quiz-attempts", async (req, res) => {
 app.get("/api/quiz-attempts/completed", async (req, res) => {
   try {
     const { telegramId, grade } = req.query;
+
     if (!telegramId || !grade) {
       return res.status(400).json({ error: "Missing telegramId or grade." });
     }
-    const attempts = await quizAttemptsCollection.find({ telegramId, grade }).toArray();
-    const completedSubjects = [...new Set(attempts.map(a => a.subject))];
+
+    const subjects = ["bio", "math", "chem", "phys"];
+    const completedSubjects = [];
+
+    for (const subject of subjects) {
+      // Find this subject's current live week
+      const currentWeekRecord = await currentWeekCollection.findOne({ grade, subject });
+      const currentWeek = currentWeekRecord ? currentWeekRecord.week : "1";
+
+      // Only count it as completed if the attempt matches THIS specific week
+      const attempt = await quizAttemptsCollection.findOne({ telegramId, grade, subject, week: currentWeek });
+      if (attempt) {
+        completedSubjects.push(subject);
+      }
+    }
+
     res.json({ success: true, completedSubjects });
   } catch (err) {
     console.error("Error fetching completed subjects:", err);
