@@ -10,7 +10,10 @@ const multer = require("multer");
 const { Bot, Keyboard } = require("grammy");
 
 const app = express();
-app.use(express.json());
+// Lightweight endpoint for uptime monitoring — just confirms the server is awake
+app.get("/ping", (req, res) => {
+  res.status(200).send("OK");
+});
 // Serve most files normally (like weekly-quiz.html, quiz.html, etc.)
 app.use(express.static(path.join(__dirname, "public"), {
   index: false, // don't auto-serve index.html
