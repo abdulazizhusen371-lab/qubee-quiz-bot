@@ -10,6 +10,8 @@ const multer = require("multer");
 const { Bot, Keyboard } = require("grammy");
 
 const app = express();
+app.use(express.json());
+
 // Lightweight endpoint for uptime monitoring — just confirms the server is awake
 app.get("/ping", (req, res) => {
   res.status(200).send("OK");
