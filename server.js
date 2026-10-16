@@ -464,6 +464,8 @@ app.delete("/api/questions/:id", async (req, res) => {
 // ===================== TELEGRAM BOT =====================
 
 const bot = new Bot(process.env.BOT_TOKEN);
+const subjectNames = { bio: "Biology", math: "Math", chem: "Chemistry", phys: "Physics" };
+const quizCodePattern = /^g(\d+)(bio|math|chem|phys)_u(\d+)$/;
 
 function showLandingMenu(ctx) {
   const keyboard = new Keyboard()
@@ -480,24 +482,43 @@ function showLandingMenu(ctx) {
 bot.command("start", async (ctx) => {
   const telegramId = ctx.from.id;
   const name = ctx.from.first_name;
+  const baseUrl = process.env.BASE_URL || "http://localhost:3000";
 
   const existingStudent = await studentsCollection.findOne({ telegramId });
 
-  if (existingStudent) {
-    await ctx.reply(`Welcome back to Qubee Tutorial Quiz!`);
-    return showLandingMenu(ctx);
+  if (!existingStudent) {
+    await studentsCollection.updateOne(
+      { telegramId },
+      { $set: { telegramId, name } },
+      { upsert: true }
+    );
+    console.log(`Saved student: ${name}, ID: ${telegramId}`);
   }
 
-  // Register the student immediately, no phone number needed
-  await studentsCollection.updateOne(
-    { telegramId },
-    { $set: { telegramId, name } },
-    { upsert: true }
+  // Opened from a channel button, e.g. /start g9bio_u1
+  const quizMatch = quizCodePattern.exec((ctx.match || "").trim());
+  if (quizMatch) {
+    const [, grade, subject, unit] = quizMatch;
+    await ctx.reply(
+      `📘 Grade ${grade} ${subjectNames[subject]} — Unit ${unit} Quiz\n\nTap below to start:`,
+      {
+        reply_markup: {
+          inline_keyboard: [[
+            {
+              text: "📝 Start Quiz",
+              web_app: { url: `${baseUrl}/archive-view.html?grade=${grade}&subject=${subject}&unit=${unit}` },
+            },
+          ]],
+        },
+      }
+    );
+    if (!existingStudent) await showLandingMenu(ctx);
+    return;
+  }
+
+  await ctx.reply(
+    existingStudent ? "Welcome back to Qubee Tutorial Quiz!" : `Welcome to Qubee Tutorial Quiz, ${name}!`
   );
-
-  console.log(`Saved student: ${name}, ID: ${telegramId}`);
-
-  await ctx.reply(`Welcome to Qubee Tutorial Quiz, ${name}!`);
   await showLandingMenu(ctx);
 });
 
@@ -549,6 +570,78 @@ bot.command("admin", async (ctx) => {
       ],
     },
   });
+});
+bot.command("postquiz", async (ctx) => {
+  const adminIds = (process.env.ADMIN_TELEGRAM_IDS || "").split(",").map(id => Number(id.trim()));
+  if (!adminIds.includes(ctx.from.id)) return;
+
+  const code = (ctx.match || "").trim();
+  const parsed = quizCodePattern.exec(code);
+  if (!parsed) {
+    return ctx.reply("Usage: /postquiz g9bio_u1");
+  }
+  if (!process.env.CHANNEL_ID) {
+    return ctx.reply("CHANNEL_ID is not set on the server.");
+  }
+
+  const [, grade, subject, unit] = parsed;
+  try {
+    await ctx.api.sendMessage(
+      process.env.CHANNEL_ID,
+      `📘 Grade ${grade} ${subjectNames[subject]} — Unit ${unit} Quiz\n\nTest yourself now 👇`,
+      {
+        reply_markup: {
+          inline_keyboard: [[{ text: "📝 Start Quiz", url: `https://t.me/${ctx.me.username}?start=${code}` }]],
+        },
+      }
+    );
+    await ctx.reply("Posted to the channel ✅");
+  } catch (err) {
+    console.error("postquiz failed:", err.message);
+    await ctx.reply("Couldn't post to the channel. Check that the bot is a channel admin with permission to post, and that CHANNEL_ID is correct.");
+  }
+});
+// Admin sends a poster photo to the bot with a caption like:
+//   /postquiz g9bio_u1
+//   (your caption text on the next lines)
+bot.on("message:photo", async (ctx) => {
+  const rawCaption = (ctx.message.caption || "").trim();
+  const match = /^\/postquiz(?:@\w+)?\s+(\S+)\s*([\s\S]*)$/.exec(rawCaption);
+  if (!match) return; // not a postquiz photo, ignore it
+
+  const adminIds = (process.env.ADMIN_TELEGRAM_IDS || "").split(",").map(id => Number(id.trim()));
+  if (!adminIds.includes(ctx.from.id)) return;
+
+  const code = match[1];
+  const captionText = match[2].trim();
+
+  const parsed = quizCodePattern.exec(code);
+  if (!parsed) {
+    return ctx.reply("Caption must start like this: /postquiz g9bio_u1");
+  }
+  if (!process.env.CHANNEL_ID) {
+    return ctx.reply("CHANNEL_ID is not set on the server.");
+  }
+
+  const [, grade, subject, unit] = parsed;
+  const finalCaption =
+    captionText || `📘 Grade ${grade} ${subjectNames[subject]} — Unit ${unit} Quiz\n\nTest yourself now 👇`;
+
+  // Telegram gives several sizes of the same photo; the last one is the largest
+  const photo = ctx.message.photo[ctx.message.photo.length - 1].file_id;
+
+  try {
+    await ctx.api.sendPhoto(process.env.CHANNEL_ID, photo, {
+      caption: finalCaption,
+      reply_markup: {
+        inline_keyboard: [[{ text: "📝 Start Quiz", url: `https://t.me/${ctx.me.username}?start=${code}` }]],
+      },
+    });
+    await ctx.reply("Posted to the channel ✅");
+  } catch (err) {
+    console.error("postquiz photo failed:", err.message);
+    await ctx.reply("Couldn't post to the channel. Check that the bot is a channel admin with permission to post, and that CHANNEL_ID is correct.");
+  }
 });
 // Catch-all: responds to any other text message that isn't a recognized command/button
 bot.on("message:text", async (ctx) => {
