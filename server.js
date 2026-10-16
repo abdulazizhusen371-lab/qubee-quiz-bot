@@ -620,7 +620,7 @@ bot.command("postquiz", async (ctx) => {
       `📘 Grade ${grade} ${subjectNames[subject]} — Unit ${unit} Quiz\n\nTest yourself now 👇`,
       {
         reply_markup: {
-          inline_keyboard: [[{ text: "📝 Start Quiz", url: `https://t.me/${ctx.me.username}?start=${code}` }]],
+          inline_keyboard: [[{ text: "📝 Qormaata Jalqabi", url: `https://t.me/${ctx.me.username}?start=${code}` }]],
         },
       }
     );
