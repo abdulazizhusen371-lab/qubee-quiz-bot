@@ -8,6 +8,7 @@ const { MongoClient, ObjectId } = require("mongodb");
 const cloudinary = require("cloudinary").v2;
 const multer = require("multer");
 const { Bot, Keyboard } = require("grammy");
+const crypto = require("crypto");
 
 const app = express();
 app.use(express.json());
@@ -488,6 +489,78 @@ app.post("/api/channel-quiz/attempt", async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error("Error saving channel quiz attempt:", err);
+    res.status(500).json({ error: "Server error." });
+  }
+});
+// Checks that a Telegram Mini App really opened for a real Telegram user
+function getTelegramUserFromInitData(initData) {
+  if (!initData) return null;
+  const params = new URLSearchParams(initData);
+  const hash = params.get("hash");
+  if (!hash) return null;
+  params.delete("hash");
+
+  const dataCheckString = [...params.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}=${v}`)
+    .join("\n");
+
+  const secretKey = crypto.createHmac("sha256", "WebAppData").update(process.env.BOT_TOKEN).digest();
+  const computed = crypto.createHmac("sha256", secretKey).update(dataCheckString).digest("hex");
+  if (computed !== hash) return null;
+
+  try {
+    return JSON.parse(params.get("user"));
+  } catch (e) {
+    return null;
+  }
+}
+
+// Admin-only: everyone who took a channel quiz, ranked by best score
+app.get("/api/channel-quiz/participants", async (req, res) => {
+  try {
+    const user = getTelegramUserFromInitData(req.headers["x-telegram-init-data"]);
+    const adminIds = (process.env.ADMIN_TELEGRAM_IDS || "").split(",").map((id) => Number(id.trim()));
+    if (!user || !adminIds.includes(Number(user.id))) {
+      return res.status(403).json({ error: "Admins only." });
+    }
+
+    const { grade, subject, unit } = req.query;
+    if (!grade || !subject || !unit) {
+      return res.status(400).json({ error: "Missing grade, subject, or unit." });
+    }
+
+    const rows = await channelQuizAttemptsCollection
+      .aggregate([
+        { $match: { grade, subject, unit } },
+        { $sort: { completedAt: 1 } },
+        {
+          $group: {
+            _id: "$telegramId",
+            name: { $last: "$name" },
+            username: { $last: "$username" },
+            bestScore: { $max: "$score" },
+            totalQuestions: { $last: "$totalQuestions" },
+            attempts: { $sum: 1 },
+            lastAttempt: { $last: "$completedAt" },
+          },
+        },
+        { $sort: { bestScore: -1, lastAttempt: 1 } },
+      ])
+      .toArray();
+
+    const participants = rows.map((r) => ({
+      name: r.name,
+      username: /^[A-Za-z0-9_]{3,32}$/.test(r.username || "") ? r.username : null,
+      bestScore: r.bestScore,
+      totalQuestions: r.totalQuestions,
+      attempts: r.attempts,
+      lastAttempt: r.lastAttempt,
+    }));
+
+    res.json({ success: true, participants });
+  } catch (err) {
+    console.error("Error fetching participants:", err);
     res.status(500).json({ error: "Server error." });
   }
 });

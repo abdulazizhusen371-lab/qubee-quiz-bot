@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>Analytics</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -93,7 +94,40 @@
     </table>
     <p id="noScorers" style="display:none; color:#999;">No attempts yet for this selection.</p>
   </div>
+  <div class="card">
+    <strong>Channel Quiz Participants</strong><br><br>
+    <select id="pGrade">
+      <option value="9">Grade 9</option>
+      <option value="10">Grade 10</option>
+      <option value="11">Grade 11</option>
+      <option value="12">Grade 12</option>
+    </select>
+    <select id="pSubject">
+      <option value="bio">Biology</option>
+      <option value="math">Math</option>
+      <option value="chem">Chemistry</option>
+      <option value="phys">Physics</option>
+    </select>
+    <select id="pUnit">
+      <option value="1">Unit 1</option>
+      <option value="2">Unit 2</option>
+      <option value="3">Unit 3</option>
+      <option value="4">Unit 4</option>
+      <option value="5">Unit 5</option>
+      <option value="6">Unit 6</option>
+    </select>
+    <button id="participantsBtn">Show participants</button>
 
+    <p id="participantsSummary" style="color:#555;"></p>
+    <div style="overflow-x:auto;">
+      <table id="participantsTable" style="display:none;">
+        <thead>
+          <tr><th>#</th><th>Name</th><th>Best</th><th>Tries</th><th>Last attempt</th><th>Contact</th></tr>
+        </thead>
+        <tbody id="participantsBody"></tbody>
+      </table>
+    </div>
+  </div>
   <script>
     // Fill week dropdown 1-24
     const weekSelect = document.getElementById("weekSelect");
@@ -168,7 +202,74 @@
     alert("Error loading analytics.");
   }
 });
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
 
+    function openTelegramChat(username) {
+      const url = `https://t.me/${username}`;
+      if (window.Telegram && Telegram.WebApp && Telegram.WebApp.openTelegramLink) {
+        Telegram.WebApp.openTelegramLink(url);
+      } else {
+        window.open(url, "_blank");
+      }
+    }
+
+    document.getElementById("participantsBtn").addEventListener("click", async () => {
+      const grade = document.getElementById("pGrade").value;
+      const subject = document.getElementById("pSubject").value;
+      const unit = document.getElementById("pUnit").value;
+      const summary = document.getElementById("participantsSummary");
+      const table = document.getElementById("participantsTable");
+      const tbody = document.getElementById("participantsBody");
+
+      summary.textContent = "Loading...";
+      table.style.display = "none";
+
+      try {
+        const initData = (window.Telegram && Telegram.WebApp && Telegram.WebApp.initData) || "";
+        const response = await fetch(
+          `/api/channel-quiz/participants?grade=${grade}&subject=${subject}&unit=${unit}`,
+          { headers: { "x-telegram-init-data": initData } }
+        );
+        const data = await response.json();
+
+        if (response.status === 403) {
+          summary.textContent = "⚠ Only admins can see this. Open the analytics page from the bot using /admin.";
+          return;
+        }
+        if (!response.ok) {
+          summary.textContent = `⚠ ${data.error}`;
+          return;
+        }
+        if (data.participants.length === 0) {
+          summary.textContent = "No participants yet for this quiz.";
+          return;
+        }
+
+        summary.textContent = `${data.participants.length} student(s) took this quiz.`;
+        tbody.innerHTML = "";
+        data.participants.forEach((p, i) => {
+          const contact = p.username
+            ? `<button onclick="openTelegramChat('${p.username}')">Message</button>`
+            : `<span style="color:#999;">No username</span>`;
+          const date = new Date(p.lastAttempt).toLocaleDateString();
+          tbody.innerHTML += `<tr>
+            <td>${i + 1}</td>
+            <td>${escapeHtml(p.name)}</td>
+            <td>${p.bestScore}/${p.totalQuestions}</td>
+            <td>${p.attempts}</td>
+            <td>${date}</td>
+            <td>${contact}</td>
+          </tr>`;
+        });
+        table.style.display = "table";
+      } catch (err) {
+        summary.textContent = "⚠ Network error.";
+      }
+    });
     loadTotalStudents();
   </script>
 </body>
