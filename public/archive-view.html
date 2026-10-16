@@ -89,6 +89,12 @@
     const grade = params.get("grade");
     const subject = params.get("subject");
     const unit = params.get("unit");
+    const track = params.get("track") === "1";
+
+let tgUser = null;
+if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe.user) {
+  tgUser = window.Telegram.WebApp.initDataUnsafe.user;
+}
 
     const subjectNames = { bio: "Biology", math: "Math", chem: "Chemistry", phys: "Physics" };
     document.getElementById("pageTitle").textContent = `Grade ${grade} ${subjectNames[subject]} — Unit ${unit}`;
@@ -187,7 +193,7 @@
         });
         if (q.choices[studentChoiceIndex]?.isCorrect) correctCount++;
       });
-
+      saveChannelAttempt(correctCount);
       const banner = document.getElementById("scoreBanner");
       banner.textContent = `You scored ${correctCount}/${questions.length}`;
       banner.style.display = "block";
@@ -206,7 +212,28 @@
     }
 
     document.getElementById("finishBtn").addEventListener("click", finishReview);
-
+async function saveChannelAttempt(correctCount) {
+  // Only records quizzes opened from the channel button, and only inside Telegram
+  if (!track || !tgUser) return;
+  try {
+    await fetch("/api/channel-quiz/attempt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        telegramId: String(tgUser.id),
+        name: tgUser.first_name,
+        username: tgUser.username || null,
+        grade,
+        subject,
+        unit,
+        score: correctCount,
+        totalQuestions: questions.length,
+      }),
+    });
+  } catch (err) {
+    console.error("Could not save attempt:", err);
+  }
+}
     loadQuestions();
   </script>
 </body>

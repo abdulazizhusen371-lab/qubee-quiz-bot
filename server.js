@@ -45,6 +45,7 @@ let questionsCollection;
 let quizAttemptsCollection;
 let currentWeekCollection;
 let studentsCollection;
+let channelQuizAttemptsCollection;
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -60,6 +61,7 @@ async function connectDB() {
   questionsCollection = db.collection("questions");
   quizAttemptsCollection = db.collection("quizAttempts");
   currentWeekCollection = db.collection("currentWeek");
+  channelQuizAttemptsCollection = db.collection("channelQuizAttempts");
   studentsCollection = db.collection("students");
   console.log("Connected to MongoDB (server)");
 }
@@ -460,6 +462,33 @@ app.delete("/api/questions/:id", async (req, res) => {
     res.status(500).json({ error: "Server error while deleting question." });
   }
 });
+// Records a finished attempt of a quiz opened from the channel button
+app.post("/api/channel-quiz/attempt", async (req, res) => {
+  try {
+    const { telegramId, name, username, grade, subject, unit, score, totalQuestions } = req.body;
+
+    if (!telegramId || !grade || !subject || !unit || score === undefined || !totalQuestions) {
+      return res.status(400).json({ error: "Missing required data." });
+    }
+
+    await channelQuizAttemptsCollection.insertOne({
+      telegramId: String(telegramId),
+      name: name || "Student",
+      username: username || null,
+      grade: String(grade),
+      subject,
+      unit: String(unit),
+      score: Number(score),
+      totalQuestions: Number(totalQuestions),
+      completedAt: new Date(),
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error saving channel quiz attempt:", err);
+    res.status(500).json({ error: "Server error." });
+  }
+});
 
 // ===================== TELEGRAM BOT =====================
 
@@ -506,7 +535,7 @@ bot.command("start", async (ctx) => {
           inline_keyboard: [[
             {
               text: "📝 Start Quiz",
-              web_app: { url: `${baseUrl}/archive-view.html?grade=${grade}&subject=${subject}&unit=${unit}` },
+              web_app: { url: `${baseUrl}/archive-view.html?grade=${grade}&subject=${subject}&unit=${unit}&track=1` },
             },
           ]],
         },
