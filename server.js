@@ -570,7 +570,11 @@ app.get("/api/channel-quiz/participants", async (req, res) => {
 const bot = new Bot(process.env.BOT_TOKEN);
 const subjectNames = { bio: "Biology", math: "Math", chem: "Chemistry", phys: "Physics" };
 const quizCodePattern = /^g(\d+)(bio|math|chem|phys)_u(\d+)$/;
-
+// Ignore channels, groups and channel direct-message chats; the bot only answers one-to-one chats
+bot.use(async (ctx, next) => {
+  if (ctx.chat && ctx.chat.type !== "private") return;
+  await next();
+});
 function showLandingMenu(ctx) {
   const keyboard = new Keyboard()
     .text("📝 This Week's Quiz")
