@@ -119,6 +119,7 @@
   <p id="publishStatus"></p>
 </div>
 <button id="loadBtn" style="background-color: #2980b9;">Load Saved Questions</button>
+<button id="deleteAllBtn" style="background-color: #c0392b;">🗑 Delete ALL questions for this selection</button>
 <button id="cleanupBtn" style="background-color: #8e44ad;">🧹 Clean Up Question Numbering (one-time)</button>
 <div id="savedQuestions"></div>
     <div id="preview">
@@ -383,6 +384,9 @@ uploadImageBtn.addEventListener("click", async () => {
         if (response.ok) {
           saveStatus.textContent = `✅ Saved ${result.insertedCount} question(s) successfully!`;
           saveStatus.style.color = "green";
+                    document.getElementById("questionInput").value = "";
+          lastParsedQuestions = [];
+          previewDiv.innerHTML = '<p style="color: #999;">Parsed questions will appear here...</p>';
         } else {
           saveStatus.textContent = `⚠ ${result.error}`;
           saveStatus.style.color = "red";
@@ -610,6 +614,40 @@ document.getElementById("cleanupBtn").addEventListener("click", async () => {
     alert(`Done! Cleaned ${result.modifiedCount} question(s).`);
   } catch (err) {
     alert("Error running cleanup.");
+  }
+});
+document.getElementById("deleteAllBtn").addEventListener("click", async () => {
+  const grade = document.getElementById("gradeSelect").value;
+  const subject = document.getElementById("subjectSelect").value;
+  const unit = document.getElementById("unitSelect").value;
+  const week = document.getElementById("weekSelect").value;
+
+  if (!grade || !subject || !unit || !week) {
+    alert("Please select grade, subject, unit, and week first.");
+    return;
+  }
+
+  const confirmed = confirm(
+    `Delete ALL saved questions for Grade ${grade}, ${subject}, Unit ${unit}, Week ${week}?\n\nThis cannot be undone.`
+  );
+  if (!confirmed) return;
+
+  try {
+    const response = await fetch("/api/questions/delete-all", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ grade, subject, unit, week }),
+    });
+    const result = await response.json();
+
+    if (response.ok) {
+      alert(`Deleted ${result.deletedCount} question(s).`);
+      document.getElementById("savedQuestions").innerHTML = "";
+    } else {
+      alert(`Error: ${result.error}`);
+    }
+  } catch (err) {
+    alert("Network error while deleting.");
   }
 });
   </script>

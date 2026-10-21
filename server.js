@@ -565,6 +565,21 @@ app.get("/api/channel-quiz/participants", async (req, res) => {
   }
 });
 
+// Deletes ALL saved questions for one grade/subject/unit/week
+app.post("/api/questions/delete-all", async (req, res) => {
+  try {
+    const { grade, subject, unit, week } = req.body;
+    if (!grade || !subject || !unit || !week) {
+      return res.status(400).json({ error: "Missing grade, subject, unit, or week." });
+    }
+
+    const result = await questionsCollection.deleteMany({ grade, subject, unit, week });
+    res.json({ success: true, deletedCount: result.deletedCount });
+  } catch (err) {
+    console.error("Error deleting all questions:", err);
+    res.status(500).json({ error: "Server error while deleting questions." });
+  }
+});
 // ===================== TELEGRAM BOT =====================
 
 const bot = new Bot(process.env.BOT_TOKEN);
