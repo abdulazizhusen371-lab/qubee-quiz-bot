@@ -570,6 +570,13 @@ app.get("/api/channel-quiz/participants", async (req, res) => {
 const bot = new Bot(process.env.BOT_TOKEN);
 const subjectNames = { bio: "Biology", math: "Math", chem: "Chemistry", phys: "Physics" };
 const quizCodePattern = /^g(\d+)(bio|math|chem|phys)_u(\d+)$/;
+// Link used by the channel button: opens the Mini App directly if it is registered, otherwise the bot chat
+function channelQuizLink(ctx, code) {
+  const shortName = process.env.MINI_APP_SHORT_NAME;
+  return shortName
+    ? `https://t.me/${ctx.me.username}/${shortName}?startapp=${code}`
+    : `https://t.me/${ctx.me.username}?start=${code}`;
+}
 // Ignore channels, groups and channel direct-message chats; the bot only answers one-to-one chats
 bot.use(async (ctx, next) => {
   if (ctx.chat && ctx.chat.type !== "private") return;
@@ -699,7 +706,7 @@ bot.command("postquiz", async (ctx) => {
       `📘 Grade ${grade} ${subjectNames[subject]} — Unit ${unit} Quiz\n\nTest yourself now 👇`,
       {
         reply_markup: {
-          inline_keyboard: [[{ text: "📝 Qormaata Jalqabi", url: `https://t.me/${ctx.me.username}?start=${code}` }]],
+          inline_keyboard: [[{ text: "📝 Qormaata Jalqabi", url: channelQuizLink(ctx, code) }]],
         },
       }
     );
@@ -742,7 +749,7 @@ bot.on("message:photo", async (ctx) => {
     await ctx.api.sendPhoto(process.env.CHANNEL_ID, photo, {
       caption: finalCaption,
       reply_markup: {
-        inline_keyboard: [[{ text: "📝 Start Quiz", url: `https://t.me/${ctx.me.username}?start=${code}` }]],
+        inline_keyboard: [[{ text: "📝 Start Quiz", url: channelQuizLink(ctx, code) }]],
       },
     });
     await ctx.reply("Posted to the channel ✅");
