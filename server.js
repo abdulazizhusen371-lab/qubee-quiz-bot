@@ -120,7 +120,9 @@ app.post("/api/questions/save", async (req, res) => {
       questionText: q.questionText,
       choices: q.choices,
       imageUrl: q.imageUrl || null,
+      explanation: q.explanation || null,
       createdAt: new Date(),
+
     }));
     const result = await questionsCollection.insertMany(documentsToInsert);
     res.json({ success: true, insertedCount: result.insertedCount });

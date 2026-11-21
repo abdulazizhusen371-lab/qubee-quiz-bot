@@ -95,7 +95,7 @@
 </select>
     </div>
 
-    <p><strong>Paste your questions below</strong> (use # for question, * for choice, ** for correct choice):</p>
+    <p><strong>Paste your questions below</strong> (use # for question, * for choice, ** for correct choice, > for explanation):</p>
 
     <textarea id="questionInput" placeholder="#What is the powerhouse of the cell?
 *Nucleus
@@ -176,94 +176,92 @@ for (let i = 1; i <= 24; i++) {
 
     // This function takes the raw pasted text and turns it into
     // an array of structured question objects
-    function parseQuestions(text) {
-      // Split the text into chunks, one per question, using "#" as the divider
-      const chunks = text.split("#").filter(chunk => chunk.trim() !== "");
+function parseQuestions(text) {
+  const chunks = text.split("#").filter(chunk => chunk.trim() !== "");
+  const questions = [];
 
-      const questions = [];
+  chunks.forEach((chunk) => {
+    const lines = chunk.split("\n").map(line => line.trim()).filter(line => line !== "");
+    if (lines.length === 0) return;
 
-      chunks.forEach((chunk) => {
-        // Split each chunk into individual lines
-        const lines = chunk.split("\n").map(line => line.trim()).filter(line => line !== "");
+    let questionText = lines[0];
+    questionText = questionText.replace(/^\d+[\.\)]\s*/, ""); // removes a typed number like "6. "
+    let imageUrl = null;
+    let restLines = lines.slice(1);
 
-        if (lines.length === 0) return;
-
-        let questionText = lines[0];
-        let imageUrl = null;
-        let choiceLines = lines.slice(1);
-
-        // Check if the second line is an image marker: ![img](URL)
-        const imageMatch = choiceLines[0] && choiceLines[0].match(/^!\[img\]\((.+)\)$/);
-        if (imageMatch) {
-          imageUrl = imageMatch[1]; // the URL captured inside the parentheses
-          choiceLines = choiceLines.slice(1); // remove that line so it's not treated as a choice
-        }
-
-        const choices = [];
-        let correctCount = 0;
-
-        choiceLines.forEach((line) => {
-          if (!line.startsWith("*")) return; // skip anything not a choice
-
-          const isCorrect = line.endsWith("**");
-
-          // Remove the leading "*" and trailing "**" (if present) to get clean text
-          let choiceText = line.replace(/^\*/, ""); // remove one leading *
-          choiceText = choiceText.replace(/\*\*$/, ""); // remove trailing ** if present
-          choiceText = choiceText.trim();
-
-          if (isCorrect) correctCount++;
-
-          choices.push({ text: choiceText, isCorrect });
-        });
-
-        // Validation: flag questions with zero or multiple correct answers
-        let error = null;
-        if (correctCount === 0) error = "No correct answer marked!";
-        if (correctCount > 1) error = "Multiple correct answers marked!";
-
-       questions.push({
-          questionText,
-          choices,
-          imageUrl,
-          error,
-        });
-      });
-
-      return questions;
+    // Optional image line right under the question: ![img](URL)
+    const imageMatch = restLines[0] && restLines[0].match(/^!\[img\]\((.+)\)$/);
+    if (imageMatch) {
+      imageUrl = imageMatch[1];
+      restLines = restLines.slice(1);
     }
 
-    // This function takes the parsed questions and displays them on the page
-    function renderPreview(questions) {
-      if (questions.length === 0) {
-        previewDiv.innerHTML = '<p style="color: #999;">No questions detected. Check your formatting.</p>';
-        return;
+    const choices = [];
+    const explanationLines = [];
+    let correctCount = 0;
+    let inExplanation = false;
+
+    restLines.forEach((line) => {
+      if (line.startsWith(">")) {
+        inExplanation = true;
+        explanationLines.push(line.slice(1).trim());
+      } else if (line.startsWith("*")) {
+        inExplanation = false;
+        const isCorrect = line.endsWith("**");
+        let choiceText = line.replace(/^\*/, "");
+        choiceText = choiceText.replace(/\*\*$/, "");
+        choiceText = choiceText.trim();
+        if (isCorrect) correctCount++;
+        choices.push({ text: choiceText, isCorrect });
+      } else if (inExplanation) {
+        explanationLines.push(line); // explanation continues on the next line
       }
+    });
 
-      let html = `<h3>Preview (${questions.length} question${questions.length > 1 ? "s" : ""})</h3>`;
+    let error = null;
+    if (correctCount === 0) error = "No correct answer marked!";
+    if (correctCount > 1) error = "Multiple correct answers marked!";
 
-      questions.forEach((q, index) => {
-        html += `<div style="border: 1px solid #ddd; border-radius: 6px; padding: 12px; margin-bottom: 10px;">`;
-        html += `<strong>Q${index + 1}: ${escapeHtml(q.questionText)}</strong>`;
-        if (q.imageUrl) {
-          html += `<br><img src="${q.imageUrl}" style="max-width: 300px; margin-top: 8px; border-radius: 4px;">`;
-        }
+    const explanation = explanationLines.join("\n").trim() || null;
 
-        if (q.error) {
-          html += `<p style="color: red; font-weight: bold;">⚠ ${q.error}</p>`;
-        }
+    questions.push({ questionText, choices, imageUrl, explanation, error });
+  });
 
-        html += `<ul>`;
-        q.choices.forEach((choice) => {
-          const style = choice.isCorrect ? "color: green; font-weight: bold;" : "";
-          const mark = choice.isCorrect ? "✓ " : "";
-          html += `<li style="${style}">${mark}${escapeHtml(choice.text)}</li>`;
-        });
-        html += `</ul>`;
-        html += `</div>`;
-      });
+  return questions;
+}
 
-      previewDiv.innerHTML = html;
+    // This function takes the parsed questions and displays them on the page
+function renderPreview(questions) {
+  if (questions.length === 0) {
+    previewDiv.innerHTML = '<p style="color: #999;">No questions detected. Check your formatting.</p>';
+    return;
+  }
+
+  let html = `<h3>Preview (${questions.length} question${questions.length > 1 ? "s" : ""})</h3>`;
+
+  questions.forEach((q, index) => {
+    html += `<div style="border: 1px solid #ddd; border-radius: 6px; padding: 12px; margin-bottom: 10px;">`;
+    html += `<strong>Q${index + 1}: ${escapeHtml(q.questionText)}</strong>`;
+    if (q.imageUrl) {
+      html += `<br><img src="${q.imageUrl}" style="max-width: 300px; margin-top: 8px; border-radius: 4px;">`;
+    }
+    if (q.error) {
+      html += `<p style="color: red; font-weight: bold;">⚠ ${q.error}</p>`;
+    }
+    html += `<ul>`;
+    q.choices.forEach((choice) => {
+      const style = choice.isCorrect ? "color: green; font-weight: bold;" : "";
+      const mark = choice.isCorrect ? "✓ " : "";
+      html += `<li style="${style}">${mark}${escapeHtml(choice.text)}</li>`;
+    });
+    html += `</ul>`;
+    if (q.explanation) {
+      html += `<div style="background:#fef9e7; padding:8px; border-radius:6px; font-size:14px;">💡 ${escapeHtml(q.explanation).replace(/\n/g, "<br>")}</div>`;
+    }
+    html += `</div>`;
+  });
+
+  previewDiv.innerHTML = html;
   renderMathIn(previewDiv);
 }
 
