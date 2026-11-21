@@ -513,6 +513,9 @@ function renderSavedQuestions(questions) {
       html += `<li style="${style}">${mark}${escapeHtml(choice.text)}</li>`;
     });
     html += `</ul>`;
+    if (q.explanation) {
+      html += `<div style="background:#fef9e7; padding:8px; border-radius:6px; font-size:14px; margin-bottom:8px;">💡 ${escapeHtml(q.explanation).replace(/\n/g, "<br>")}</div>`;
+    }
     html += `<button onclick="startEdit('${q._id}')" style="background-color: #f39c12; margin-right: 8px;">Edit</button>`;
     html += `<button onclick="deleteQuestion('${q._id}')" style="background-color: #c0392b;">Delete</button>`;
     html += `</div>`;
@@ -541,6 +544,7 @@ function startEdit(id) {
   });
 
   formHtml += `
+    <textarea id="edit-expl-${id}" placeholder="Explanation (optional)" style="width: 100%; padding: 6px; margin: 8px 0; height: 70px; box-sizing: border-box;">${escapeHtml(question.explanation || "")}</textarea>
     <button onclick="saveEdit('${id}')" style="background-color: #27ae60; margin-right: 8px;">Save Changes</button>
     <button onclick="renderSavedQuestions(window.currentQuestions)" style="background-color: #7f8c8d;">Cancel</button>
   `;
@@ -551,6 +555,7 @@ function startEdit(id) {
 async function saveEdit(id) {
   const question = window.currentQuestions.find(q => q._id === id);
   const questionText = document.getElementById(`edit-text-${id}`).value;
+  const explanation = document.getElementById(`edit-expl-${id}`).value.trim();
 
   const choices = question.choices.map((choice, i) => ({
     text: document.getElementById(`edit-choice-${id}-${i}`).value,
@@ -567,7 +572,7 @@ async function saveEdit(id) {
     const response = await fetch(`/api/questions/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ questionText, choices }),
+      body: JSON.stringify({ questionText, choices, explanation }),
     });
 
     if (response.ok) {
