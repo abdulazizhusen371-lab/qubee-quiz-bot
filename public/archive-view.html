@@ -82,6 +82,14 @@
   <div class="finish-bar">
     <button class="finish-btn" id="finishBtn" disabled>Answer all questions to finish</button>
   </div>
+    <div id="modeOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.55); align-items:center; justify-content:center; z-index:200; padding:20px; box-sizing:border-box;">
+    <div style="background:white; padding:24px; border-radius:14px; text-align:center; width:100%; max-width:320px; box-sizing:border-box;">
+      <h3 style="margin:0 0 6px; color:#2c3e50;">When do you want to see the answers?</h3>
+      <p style="margin:0 0 14px; color:#777; font-size:13px;">Choose before you start.</p>
+      <button onclick="chooseMode('end')" style="display:block; width:100%; padding:13px; margin-bottom:10px; background:#2c3e50; color:white; border:none; border-radius:8px; font-size:15px; cursor:pointer;">📋 At the end, after all questions</button>
+      <button onclick="chooseMode('instant')" style="display:block; width:100%; padding:13px; background:#27ae60; color:white; border:none; border-radius:8px; font-size:15px; cursor:pointer;">⚡ Right after each question</button>
+    </div>
+  </div>
 
   <script>
     const params = new URLSearchParams(window.location.search);
@@ -127,6 +135,7 @@ if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData
 
         questions = result.questions;
         renderQuestions();
+        askAnswerMode();
       } catch (err) {
         container.innerHTML = `<p style="text-align:center; color:red;">⚠ Network error loading questions.</p>`;
       }
@@ -153,6 +162,16 @@ if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData
 
     function selectChoice(qIndex, cIndex) {
       if (quizFinished) return;
+
+      // Instant mode: the first tap is final
+      if (answerMode === "instant") {
+        if (studentAnswers[qIndex] !== undefined) return;
+        studentAnswers[qIndex] = cIndex;
+        markQuestion(qIndex);
+        updateFinishState();
+        return;
+      }
+
       studentAnswers[qIndex] = cIndex;
 
       document.querySelectorAll(`.choice[data-q="${qIndex}"]`).forEach((btn) => btn.classList.remove("selected"));
@@ -178,21 +197,12 @@ if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData
       let correctCount = 0;
 
       questions.forEach((q, qIndex) => {
-        const studentChoiceIndex = studentAnswers[qIndex];
-        q.choices.forEach((choice, cIndex) => {
-          const btn = document.querySelector(`.choice[data-q="${qIndex}"][data-c="${cIndex}"]`);
-          btn.onclick = null;
-          if (choice.isCorrect) {
-            btn.classList.add("correct-answer");
-            btn.innerHTML += `<span class="mark">✓</span>`;
-          } else if (cIndex === studentChoiceIndex) {
-            btn.classList.add("wrong-answer");
-            btn.innerHTML += `<span class="mark">✗</span>`;
-          }
-        });
-        if (q.choices[studentChoiceIndex]?.isCorrect) correctCount++;
+        if (answerMode === "end") markQuestion(qIndex);
+        if (q.choices[studentAnswers[qIndex]]?.isCorrect) correctCount++;
       });
+
       saveChannelAttempt(correctCount);
+
       const banner = document.getElementById("scoreBanner");
       banner.textContent = `You scored ${correctCount}/${questions.length}`;
       banner.style.display = "block";
@@ -233,7 +243,36 @@ async function saveChannelAttempt(correctCount) {
     console.error("Could not save attempt:", err);
   }
 }
+    let answerMode = "end";
+
+    function askAnswerMode() {
+      document.getElementById("modeOverlay").style.display = "flex";
+    }
+
+    function chooseMode(mode) {
+      answerMode = mode;
+      document.getElementById("modeOverlay").style.display = "none";
+    }
+
+    // Marks one question: the correct choice green, the student's wrong pick red
+    function markQuestion(qIndex) {
+      const q = questions[qIndex];
+      const picked = studentAnswers[qIndex];
+      q.choices.forEach((choice, cIndex) => {
+        const btn = document.querySelector(`.choice[data-q="${qIndex}"][data-c="${cIndex}"]`);
+        if (!btn) return;
+        btn.onclick = null;
+        if (choice.isCorrect) {
+          btn.classList.add("correct-answer");
+          btn.innerHTML += `<span class="mark">✓</span>`;
+        } else if (cIndex === picked) {
+          btn.classList.add("wrong-answer");
+          btn.innerHTML += `<span class="mark">✗</span>`;
+        }
+      });
+    }
     loadQuestions();
+
   </script>
 </body>
 </html>

@@ -177,7 +177,14 @@
       <button class="result-btn" style="background: #7f8c8d; margin-top: 8px;" onclick="goBack()">Back to Subjects</button>
     </div>
   </div>
-  
+    <div id="modeOverlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.55); align-items:center; justify-content:center; z-index:200; padding:20px; box-sizing:border-box;">
+    <div style="background:white; padding:24px; border-radius:14px; text-align:center; width:100%; max-width:320px; box-sizing:border-box;">
+      <h3 style="margin:0 0 6px; color:#2c3e50;">When do you want to see the answers?</h3>
+      <p style="margin:0 0 14px; color:#777; font-size:13px;">Choose before you start.</p>
+      <button onclick="chooseMode('end')" style="display:block; width:100%; padding:13px; margin-bottom:10px; background:#2c3e50; color:white; border:none; border-radius:8px; font-size:15px; cursor:pointer;">📋 At the end, after all questions</button>
+      <button onclick="chooseMode('instant')" style="display:block; width:100%; padding:13px; background:#27ae60; color:white; border:none; border-radius:8px; font-size:15px; cursor:pointer;">⚡ Right after each question</button>
+    </div>
+  </div>
   <script>
     const params = new URLSearchParams(window.location.search);
 const grade = params.get("grade");
@@ -241,6 +248,7 @@ async function fetchQuestions(existingAttempt) {
     } else {
       renderQuestions();
       updateProgress();
+      askAnswerMode();
     }
   } catch (err) {
     container.innerHTML = `<p style="text-align:center; padding: 30px; color: red;">⚠ Network error loading quiz.</p>`;
@@ -308,11 +316,19 @@ function showAlreadyCompletedReview(existingAttempt) {
     }
 
     function selectChoice(qIndex, cIndex) {
-      if (quizFinished) return; // no changing answers after submitting
+      if (quizFinished) return;
+
+      // Instant mode: the first tap is final
+      if (answerMode === "instant") {
+        if (studentAnswers[qIndex] !== undefined) return;
+        studentAnswers[qIndex] = cIndex;
+        markQuestion(qIndex);
+        updateProgress();
+        return;
+      }
 
       studentAnswers[qIndex] = cIndex;
 
-      // Update visual selection for this question's choices only
       document.querySelectorAll(`.choice[data-q="${qIndex}"]`).forEach((btn) => {
         btn.classList.remove("selected");
       });
@@ -328,7 +344,34 @@ function showAlreadyCompletedReview(existingAttempt) {
 
       document.getElementById("progressFill").style.width = `${percent}%`;
       document.getElementById("progressLabel").textContent = `${answeredCount} of ${total} answered`;
+    let answerMode = "end";
 
+    function askAnswerMode() {
+      document.getElementById("modeOverlay").style.display = "flex";
+    }
+
+    function chooseMode(mode) {
+      answerMode = mode;
+      document.getElementById("modeOverlay").style.display = "none";
+    }
+
+    // Marks one question: the correct choice green, the student's wrong pick red
+    function markQuestion(qIndex) {
+      const q = questions[qIndex];
+      const picked = studentAnswers[qIndex];
+      q.choices.forEach((choice, cIndex) => {
+        const btn = document.querySelector(`.choice[data-q="${qIndex}"][data-c="${cIndex}"]`);
+        if (!btn) return;
+        btn.onclick = null;
+        if (choice.isCorrect) {
+          btn.classList.add("correct-answer");
+          btn.innerHTML += `<span class="mark">✓</span>`;
+        } else if (cIndex === picked) {
+          btn.classList.add("wrong-answer");
+          btn.innerHTML += `<span class="mark">✗</span>`;
+        }
+      });
+    }
       const finishBtn = document.getElementById("finishBtn");
       if (answeredCount === total) {
         finishBtn.disabled = false;
@@ -344,42 +387,28 @@ function showAlreadyCompletedReview(existingAttempt) {
       let correctCount = 0;
 
       questions.forEach((q, qIndex) => {
-        const studentChoiceIndex = studentAnswers[qIndex];
-
-        q.choices.forEach((choice, cIndex) => {
-          const btn = document.querySelector(`.choice[data-q="${qIndex}"][data-c="${cIndex}"]`);
-          btn.onclick = null; // disable further clicking
-
-          if (choice.isCorrect) {
-            btn.classList.add("correct-answer");
-            btn.innerHTML += `<span class="mark">✓</span>`;
-          } else if (cIndex === studentChoiceIndex) {
-            btn.classList.add("wrong-answer");
-            btn.innerHTML += `<span class="mark">✗</span>`;
-          }
-        });
-
-        if (q.choices[studentChoiceIndex]?.isCorrect) correctCount++;
+        if (answerMode === "end") markQuestion(qIndex);
+        if (q.choices[studentAnswers[qIndex]]?.isCorrect) correctCount++;
       });
 
-      // Show result popup
       const percentage = (correctCount / questions.length) * 100;
       let feedbackMessage;
-      if (percentage === 100) {
-        feedbackMessage = "🌟 Perfect score! Outstanding work!";
-      } else if (percentage >= 80) {
-        feedbackMessage = "🎉 Great job! You really know this material.";
-      } else if (percentage >= 60) {
-        feedbackMessage = "👍 Good effort! A bit more practice will help.";
-      } else if (percentage >= 40) {
-        feedbackMessage = "📚 Keep studying — review the material and try the archive practice.";
-      } else {
-        feedbackMessage = "💪 Don't worry — go back to the videos and try the archive for practice.";
-      }
+      if (percentage === 100) feedbackMessage = "🌟 Perfect score! Outstanding work!";
+      else if (percentage >= 80) feedbackMessage = "🎉 Great job! You really know this material.";
+      else if (percentage >= 60) feedbackMessage = "👍 Good effort! A bit more practice will help.";
+      else if (percentage >= 40) feedbackMessage = "📚 Keep studying — review the material and try the archive practice.";
+      else feedbackMessage = "💪 Don't worry — go back to the videos and try the archive for practice.";
+
       document.getElementById("resultMessage").textContent = feedbackMessage;
       document.getElementById("resultScore").textContent = `${correctCount}/${questions.length}`;
       document.getElementById("resultOverlay").style.display = "flex";
 
+      if (typeof confetti === "function") {
+        confetti({ particleCount: 150, spread: 90, origin: { y: 0.6 } });
+      }
+
+      saveQuizAttempt(correctCount);
+    }
 
 // Fire confetti (only if the library loaded successfully)
       if (typeof confetti === "function") {
