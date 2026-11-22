@@ -149,6 +149,8 @@
       font-size: 15px;
       cursor: pointer;
     }
+    .expl-toggle { display: block; width: 100%; text-align: left; background: #fef9e7; border: 1px solid #f0e2a8; color: #7a5c00; padding: 10px 12px; border-radius: 8px; font-size: 14px; cursor: pointer; margin-top: 6px; box-sizing: border-box; }
+    .expl-box { display: none; background: #fef9e7; border-radius: 8px; padding: 10px 12px; font-size: 14px; margin-top: 6px; line-height: 1.5; }
   </style>
 </head>
 <body>
@@ -255,35 +257,19 @@ async function fetchQuestions(existingAttempt) {
   }
 }
 
-function showAlreadyCompletedReview(existingAttempt) {
-  quizFinished = true;
+    function showAlreadyCompletedReview(existingAttempt) {
+      quizFinished = true;
+      answerMode = "end";
 
-  questions.forEach((q, qIndex) => {
-    const studentChoiceIndex = studentAnswers[qIndex];
+      questions.forEach((q, qIndex) => {
+        markQuestion(qIndex);
+      });
 
-    q.choices.forEach((choice, cIndex) => {
-      const btn = document.querySelector(`.choice[data-q="${qIndex}"][data-c="${cIndex}"]`);
-      if (!btn) return;
-      btn.onclick = null;
-
-      if (choice.isCorrect) {
-        btn.classList.add("correct-answer");
-        btn.innerHTML += `<span class="mark">✓</span>`;
-      } else if (cIndex === studentChoiceIndex) {
-        btn.classList.add("wrong-answer");
-        btn.innerHTML += `<span class="mark">✗</span>`;
-      }
-    });
-  });
-
-  // Hide the finish bar entirely — nothing left to submit
-  document.querySelector(".finish-bar").style.display = "none";
-
-  // Update progress bar to show it's fully done, with a note
-  document.getElementById("progressFill").style.width = "100%";
-  document.getElementById("progressLabel").textContent =
-    `Already completed — you scored ${existingAttempt.score}/${existingAttempt.totalQuestions}`;
-}
+      document.querySelector(".finish-bar").style.display = "none";
+      document.getElementById("progressFill").style.width = "100%";
+      document.getElementById("progressLabel").textContent =
+        `Already completed — you scored ${existingAttempt.score}/${existingAttempt.totalQuestions}`;
+    }
     // Tracks which choice index the student picked for each question
     // e.g. { 0: 1, 1: 0 } means "for question 0, picked choice 1"
     const studentAnswers = {};
@@ -371,6 +357,43 @@ function showAlreadyCompletedReview(existingAttempt) {
           btn.innerHTML += `<span class="mark">✗</span>`;
         }
       });
+
+      // Explanation: opens by itself in instant mode, stays folded in end mode
+      addExplanation(qIndex, answerMode === "instant");
+    }
+
+    function explanationToHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML.replace(/\n/g, "<br>");
+    }
+
+    function addExplanation(qIndex, openNow) {
+      const q = questions[qIndex];
+      if (!q.explanation) return;
+
+      const firstChoice = document.querySelector(`.choice[data-q="${qIndex}"]`);
+      if (!firstChoice) return;
+      const card = firstChoice.parentElement;
+      if (card.querySelector(".expl-toggle")) return; // already added
+
+      const toggle = document.createElement("button");
+      toggle.className = "expl-toggle";
+
+      const box = document.createElement("div");
+      box.className = "expl-box";
+      box.innerHTML = explanationToHtml(q.explanation);
+
+      function setOpen(open) {
+        box.style.display = open ? "block" : "none";
+        toggle.textContent = open ? "💡 Hide explanation" : "💡 Show explanation";
+      }
+      toggle.onclick = () => setOpen(box.style.display !== "block");
+
+      card.appendChild(toggle);
+      card.appendChild(box);
+      setOpen(openNow);
+      renderMathIn(box);
     }
       const finishBtn = document.getElementById("finishBtn");
       if (answeredCount === total) {
@@ -421,7 +444,7 @@ function showAlreadyCompletedReview(existingAttempt) {
         console.warn("Confetti library didn't load — skipping animation.");
       }
       saveQuizAttempt(correctCount);
-    }
+    
 async function saveQuizAttempt(correctCount) {
       const answersRecord = questions.map((q, qIndex) => ({
         questionText: q.questionText,
