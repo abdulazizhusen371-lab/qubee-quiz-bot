@@ -490,8 +490,8 @@ loadBtn.addEventListener("click", async () => {
     }
 
     renderSavedQuestions(result.questions);
-  } catch (err) {
-    savedQuestionsDiv.innerHTML = '<p style="color: red;">⚠ Network error — is the server running?</p>';
+    } catch (err) {
+    savedQuestionsDiv.innerHTML = `<p style="color: red;">⚠ Error: ${err.message}</p>`;
   }
 });
 
