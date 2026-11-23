@@ -438,7 +438,7 @@ app.get("/api/current-week-check", async (req, res) => {
 app.put("/api/questions/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { questionText, choices } = req.body;
+    const { questionText, choices, explanation } = req.body;
     if (!questionText || !choices || choices.length === 0) {
       return res.status(400).json({ error: "Question text and choices are required." });
     }
@@ -446,9 +446,14 @@ app.put("/api/questions/:id", async (req, res) => {
     if (correctCount !== 1) {
       return res.status(400).json({ error: "Exactly one choice must be marked correct." });
     }
+    const update = { questionText, choices };
+    if (explanation !== undefined) {
+      update.explanation = String(explanation).trim() || null;
+    }
+
     await questionsCollection.updateOne(
       { _id: new ObjectId(id) },
-      { $set: { questionText, choices } }
+      { $set: update }
     );
     res.json({ success: true });
   } catch (err) {
